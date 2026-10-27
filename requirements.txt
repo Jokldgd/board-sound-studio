@@ -1,0 +1,27 @@
+# Soundboard Studio 运行依赖（Windows 10/11，Python 3.10+）
+#
+# 安装：pip install -r requirements.txt
+#
+# 说明：
+# * PySide6        —— 图形界面
+# * sounddevice    —— 播放：一个常驻输出流 + 回调内混音（内嵌 PortAudio）
+# * soundfile      —— 播放解码（wav/flac/ogg，新版也支持 mp3）+ 录音落盘
+# * pyaudiowpatch  —— 录音：麦克风（模式 1）+ 系统声音 loopback（模式 2）
+#                     ⚠ 它提供的模块名是 `pyaudiowpatch`，与 `pyaudio` 不冲突、可共存；
+#                       自带 PortAudio DLL，pip 装上即用，不需要额外装驱动/SDK
+# * pycaw          —— 枚举"正在播放声音的应用"（模式 3），会自动带上 comtypes
+# * psutil         —— 进程名 / exe 路径 / 存活检测 / 应用图标定位
+# * keyboard       —— 全局热键（音效键 + 录音键，底层键盘钩子）
+# * numpy          —— 混音、录音缓冲、裁剪、归一化、重采样
+
+PySide6>=6.6
+sounddevice>=0.4.6
+soundfile>=0.12.1
+pyaudiowpatch>=0.2.12
+pycaw>=20240210
+psutil>=5.9
+keyboard>=0.13.5
+numpy>=1.24
+
+# 可选：只有"另存为 MP3"才需要（还需系统 PATH 里有 ffmpeg）
+# pydub>=0.25.1

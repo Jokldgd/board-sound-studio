@@ -1,0 +1,42 @@
+# ---- 用户数据（绝不入库）----
+audio/
+temp/
+config.json
+config.json.tmp
+studio.log
+studio.log.*
+*.wav
+*.mp3
+*.json.bak
+.build_backup/
+.diag*/
+
+# ---- 构建产物 ----
+dist/
+dist_staging/
+build/
+.tmp/
+*.spec
+*.exe
+*.dll
+*.pyd
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
