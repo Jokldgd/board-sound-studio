@@ -288,6 +288,7 @@ class MainWindow(QMainWindow):
         from .widgets import TitleBar
 
         self.title_bar = TitleBar("Soundboard Studio", root)
+        # 最小化 = 正常缩到任务栏（保留任务栏按钮），不隐藏窗口
         self.title_bar.minimize_requested.connect(self.showMinimized)
         self.title_bar.maximize_requested.connect(self._toggle_maximize)
         self.title_bar.close_requested.connect(self.close)
@@ -553,10 +554,8 @@ class MainWindow(QMainWindow):
         style.unpolish(self._root)
         style.polish(self._root)
         self.title_bar.set_maximized(maximized)
-        if self.tray is not None and maximized is False and self.isMinimized():
-            QTimer.singleShot(0, self.hide)
-            self.tray.notify_once("Soundboard Studio 仍在后台", "全局快捷键有效；录音不会中断")
-            self.tray.set_window_visible(False)
+        # 注意：最小化**不要**再 hide()。以前这里缩到托盘，结果任务栏没有按钮，
+        # 用户以为程序没了。现在最小化就是普通"缩到任务栏"，点任务栏即可还原。
 
     def _edges_at(self, position: QPoint) -> Qt.Edge | None:
         """命中窗口边缘（8 方向）。注意 ``Qt.Edge`` 是 Flag 枚举，不能 ``int()``。"""

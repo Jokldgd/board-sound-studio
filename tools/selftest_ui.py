@@ -85,6 +85,16 @@ def main() -> int:
     window.show()
     pump(app, 0.8)
 
+    # ---------------- 0. 最小化必须留在任务栏（不能 hide） ----------------
+    window.showMinimized()
+    pump(app, 0.4)
+    check("最小化后窗口仍然可见（任务栏有按钮）",
+          window.isVisible() and window.isMinimized(),
+          f"visible={window.isVisible()} minimized={window.isMinimized()}")
+    window.showNormal()
+    pump(app, 0.4)
+    check("从最小化可以还原", not window.isMinimized(), str(window.windowState()))
+
     # ---------------- 1. 边缘命中（纯函数） ----------------
     width, height = window.width(), window.height()
     cases = {

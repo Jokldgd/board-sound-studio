@@ -133,10 +133,27 @@ def run_diagnostics(store: ConfigStore) -> None:
     logger.info("=== 诊断结束 ===")
 
 
+def _set_app_user_model_id() -> None:
+    """给进程一个显式 AppUserModelID。
+
+    Windows 靠它把窗口/任务栏/开始菜单归到同一个应用；不设的话，无边框窗口在
+    任务栏可能显示成"空白/幽灵"图标，固定到任务栏也会分裂成两个条目。
+    """
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "Jokldgd.SoundboardStudio"
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def main() -> int:
     setup_logging()
     logger.info("启动，基准目录 %s", paths.base_dir())
 
+    _set_app_user_model_id()
     app = QApplication(sys.argv)
     app.setApplicationName("SoundboardStudio")
     app.setApplicationDisplayName("Soundboard Studio")
