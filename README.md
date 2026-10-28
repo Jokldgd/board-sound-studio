@@ -16,12 +16,21 @@
 
 ## 下载安装（最新版 1.3.3）
 
-**➡️ [下载 SoundboardStudio-Setup-1.3.3.exe](https://github.com/Jokldgd/board-sound-studio/releases/latest)**
+**➡️ [Releases 页面（v1.3.3）](https://github.com/Jokldgd/board-sound-studio/releases/tag/v1.3.3)**
+**➡️ 直接下载 [SoundboardStudio-Setup-1.3.3.exe](https://github.com/Jokldgd/board-sound-studio/releases/download/v1.3.3/SoundboardStudio-Setup-1.3.3.exe)**
+
+Release 里附了 3 个文件：
+
+| 文件 | 说明 |
+|---|---|
+| `SoundboardStudio-Setup-1.3.3.exe` | 安装包（42.7 MB） |
+| `install.cmd` | 备用启动器：双击 exe 报「错误 5 / 无法创建临时目录」时用它（需与安装包放同一目录） |
+| `install-notes.txt` | 安装说明（中文） |
 
 | 项 | 说明 |
 |---|---|
 | 版本 | **1.3.3**（2026-10-28 构建） |
-| 大小 | 42.7 MB |
+| 大小 | 42.7 MB（44,748,951 字节） |
 | SHA-256 | `D1416B3D5BD0889C81B3D52F6143B7DDE88FA3F061AEA16FDFED63232870E170` |
 | 系统 | Windows 10 / 11（64 位） |
 | 依赖 | 虚拟声卡 VB-CABLE（安装包会**自动静默安装并校验**，装完可能需重启一次） |
