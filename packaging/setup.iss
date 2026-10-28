@@ -109,7 +109,7 @@ Filename: "{app}\{#AppExeName}"; \
 [Code]
 const
   MMDEVICES_RENDER = 'SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render';
-  ; 设备"友好名称"属性键（Windows 音频端点标准属性）
+  // 设备"友好名称"属性键（Windows 音频端点标准属性）
   DEVICE_FRIENDLY_NAME = '{a45c254e-df1c-4efd-8020-67d146a850e0},2';
 
 var

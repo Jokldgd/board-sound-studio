@@ -40,9 +40,13 @@ for package in ("pyaudiowpatch", "pycaw", "comtypes"):
     binaries += pkg_binaries
     hiddenimports += pkg_hidden
 
-binaries += collect_dynamic_libs("sounddevice")   # PortAudio DLL
-binaries += collect_dynamic_libs("soundfile")     # libsndfile DLL
-datas += collect_data_files("soundfile")
+# 注意：sounddevice / soundfile 是**模块**（不是 package），
+# collect_dynamic_libs() 对它们只会打印 “not a package” 警告并跳过。
+# 它们的 DLL 由 PyInstaller 自带的 contrib hook（hook-sounddevice.py /
+# hook-soundfile.py）负责收集；构建后应能看到：
+#   _internal\_sounddevice_data\portaudio-binaries\libportaudio64bit.dll
+#   _internal\_soundfile_data\libsndfile_x64.dll
+# 若某天 hook 失效，再显式把这两个目录加进 datas。
 
 # 安装目录里自带一个空 audio/（运行时 paths.audio_dir() 还会再 ensure 一次）
 keep = os.path.join(ROOT, "audio", ".gitkeep")
@@ -61,10 +65,18 @@ a = Analysis(
     excludes=[
         "tkinter", "matplotlib", "scipy", "pandas", "IPython",
         "pytest", "setuptools", "pip",
+        "comtypes.test",          # 测试包，会拖进几十个无用模块
     ],
     noarchive=False,
     optimize=0,
 )
+
+# 只保留 Windows x64 的 PortAudio：sounddevice 的 hook 会把 macOS / ARM / 32 位
+# 的 DLL 一起收进来（多出约 2MB，还会让杀软多扫几个文件）。
+a.binaries = [
+    entry for entry in a.binaries
+    if not any(mark in entry[0].lower() for mark in ("arm64", "32bit", ".dylib"))
+]
 pyz = PYZ(a.pure)
 
 exe = EXE(

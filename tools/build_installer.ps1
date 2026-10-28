@@ -108,12 +108,20 @@ try {
     Write-Host "[3/3] Inno Setup compile ..."
     if (-not $Iscc) {
         $candidates = @(
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
             "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
             "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
-            "${env:ProgramFiles(x86)}\Inno Setup 5\ISCC.exe"
+            "${env:ProgramFiles(x86)}\Inno Setup 5\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 5\ISCC.exe"
         )
         foreach ($c in $candidates) {
             if (Test-Path $c) { $Iscc = $c; break }
+        }
+        # 兜底：winget 可能装到别的 per-user 目录，直接搜
+        if (-not $Iscc) {
+            $found = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter "ISCC.exe" `
+                -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) { $Iscc = $found.FullName }
         }
     }
     if (-not $Iscc -or -not (Test-Path $Iscc)) {
