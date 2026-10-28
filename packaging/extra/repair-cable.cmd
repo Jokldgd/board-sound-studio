@@ -7,7 +7,7 @@ rem ============================================================================
 setlocal
 cd /d "%~dp0"
 
-set "SETUP=%~dp0redist\VBCABLE_Setup_x64.exe"
+set "SETUP=%~dp0redist\VBCABLE\VBCABLE_Setup_x64.exe"
 if not exist "%SETUP%" (
     echo [ERROR] Missing: %SETUP%
     echo Reinstall Soundboard Studio to restore it.
@@ -17,7 +17,7 @@ if not exist "%SETUP%" (
 
 echo Installing VB-CABLE (a UAC prompt will appear, click Yes) ...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "Start-Process -FilePath '%SETUP%' -ArgumentList '-i' -Verb RunAs -Wait"
+  "Start-Process -FilePath '%SETUP%' -ArgumentList '-i' -WorkingDirectory (Split-Path '%SETUP%') -Verb RunAs -Wait"
 
 echo.
 echo Checking audio endpoints ...

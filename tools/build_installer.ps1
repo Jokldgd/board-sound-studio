@@ -31,7 +31,9 @@ $dist = Join-Path $root "dist\SoundboardStudio"
 $packaging = Join-Path $root "packaging"
 $redist = Join-Path $packaging "redist"
 $backup = Join-Path $root ".build_backup"
-$cableExe = Join-Path $redist "VBCABLE_Setup_x64.exe"
+# VB-CABLE 必须整包：Setup exe 需要同目录的 .inf/.sys/.cat
+$cableDir = Join-Path $redist "VBCABLE"
+$cableExe = Join-Path $cableDir "VBCABLE_Setup_x64.exe"
 $cableUrl = "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip"
 
 Push-Location $root
@@ -88,9 +90,13 @@ try {
         Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
         # 用 Python 解压：Expand-Archive 在重定向输出的环境里会因 Write-Progress 报错
         & $python (Join-Path $packaging "extract_cable.py") $zip $tmpDir | Out-Host
-        $found = Get-ChildItem $tmpDir -Recurse -Filter "VBCABLE_Setup_x64.exe" | Select-Object -First 1
-        if (-not $found) { throw "VBCABLE_Setup_x64.exe not found inside the zip" }
-        Copy-Item $found.FullName $cableExe -Force
+        if (-not (Test-Path (Join-Path $tmpDir "VBCABLE_Setup_x64.exe"))) {
+            throw "VBCABLE_Setup_x64.exe not found inside the zip"
+        }
+        # 整包复制（inf/sys/cat 缺一不可，否则报 "Missing 'inf' file"）
+        Remove-Item -Recurse -Force $cableDir -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force $cableDir | Out-Null
+        Copy-Item (Join-Path $tmpDir "*") $cableDir -Recurse -Force
         Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
         if ($CableZip -eq "") { Remove-Item $zip -Force -ErrorAction SilentlyContinue }
     }

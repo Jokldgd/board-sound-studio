@@ -14,12 +14,13 @@
 ; ============================================================================
 
 #define AppName        "Soundboard Studio"
-#define AppVersion     "1.2.0"
+#define AppVersion     "1.2.1"
 #define AppPublisher   "Jokldgd"
 #define AppURL         "https://github.com/Jokldgd/board-sound-studio"
 #define AppExeName     "SoundboardStudio.exe"
 #define SourceDir      "..\dist\SoundboardStudio"
-#define CableSetup     "redist\VBCABLE_Setup_x64.exe"
+; VB-CABLE 是"整包"：Setup exe 要跟 inf/sys/cat 放在同一目录
+#define CableDir       "redist\VBCABLE"
 #define CableInstaller "VBCABLE_Setup_x64.exe"
 
 [Setup]
@@ -74,8 +75,9 @@ Name: "vbcable";     Description: "安装 VB-CABLE 虚拟声卡（推荐；装�
 Source: "{#SourceDir}\*"; DestDir: "{app}"; \
   Excludes: "config.json,studio.log,studio.log.*,audio\*"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
-; 保留一份驱动安装器在安装目录，方便测试人员随时"修复/重装"
-Source: "{#CableSetup}"; DestDir: "{app}\redist"; Flags: ignoreversion
+; 保留整套驱动包在安装目录（inf/sys/cat 必须与 Setup exe 同目录）
+Source: "{#CableDir}\*"; DestDir: "{app}\{#CableDir}"; \
+  Flags: ignoreversion recursesubdirs createallsubdirs
 ; 一键修复脚本（开始菜单里也有入口）
 Source: "extra\repair-cable.cmd"; DestDir: "{app}"; DestName: "修复虚拟声卡.cmd"; Flags: ignoreversion
 
@@ -168,17 +170,20 @@ begin
     end;
 end;
 
-{ 跑一次驱动安装器；返回进程退出码（-1 = 启动失败） }
+{ 跑一次驱动安装器；返回进程退出码（-1 = 启动失败）
+  注意：WorkingDir 必须是驱动包目录，Setup exe 会去同目录找 .inf/.sys/.cat }
 function RunCableInstaller(Silent: Boolean): Integer;
 var
   Params: String;
   Code: Integer;
+  CableDir: String;
 begin
   if Silent then
     Params := '-i -h'
   else
     Params := '-i';
-  if not Exec(ExpandConstant('{app}\redist\{#CableInstaller}'), Params, '',
+  CableDir := ExpandConstant('{app}\{#CableDir}');
+  if not Exec(CableDir + '\{#CableInstaller}', Params, CableDir,
               SW_SHOW, ewWaitUntilTerminated, Code) then
     Result := -1
   else

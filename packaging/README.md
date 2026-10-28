@@ -34,6 +34,24 @@ soundboard_studio/
    - 或手动把 zip 交给脚本：`-CableZip D:\VBCABLE_Driver_Pack43.zip`
    - 脚本会用 Authenticode 校验发布者为 `VB-Audio / Vincent Burel`，不符直接拒绝打包。
 
+## 1.2.1：修 VB-CABLE 驱动包不完整（Missing 'inf' file）
+
+**症状**：虚拟机/干净系统上安装时弹出
+`VBCABLE Installation Error: Missing 'inf' file or Driver package corrupted...`
+
+**原因**：`VBCABLE_Setup_x64.exe` **不是自包含安装器**。官方 zip 里除了两个 setup exe，
+还有 `vbMmeCable64_win7.inf`、`vbaudio_cable64_win7.sys`、`.cat` 等文件（共 27 个）。
+之前打包只取了 exe，安装时找不到 inf 就报这个错——这也是"测试人员说没装上虚拟声卡"的真正原因。
+
+**修复**：
+* 整包解压到 `packaging\redist\VBCABLE\`（27 个文件，7 个 inf）；
+* 安装包把它们全部装到 `{app}\redist\VBCABLE\`，并以**该目录为工作目录**运行 setup；
+* 开始菜单的「安装/修复 VB-CABLE 虚拟声卡」同样改到新路径 + 设置工作目录；
+* 版本 1.2.1，产物 `installer\SoundboardStudio-Setup-1.2.1.exe`（42.7 MB）。
+
+> 验证方法：装完后看 `C:\Program Files\Soundboard Studio\redist\VBCABLE\` 里应有
+> `VBCABLE_Setup_x64.exe` + `*.inf` + `*.sys` + `*.cat`；再点开始菜单的修复项。
+
 ## 1.2.0：数据搬到 %APPDATA%、安全卸载、设备中心、新手引导
 
 * **用户数据与程序分离**：`%APPDATA%\Soundboard Studio\`（`audio\` / `config.json` / `studio.log`）。

@@ -1,11 +1,11 @@
-"""解压 VB-CABLE 安装包，取出 VBCABLE_Setup_x64.exe（不依赖 Expand-Archive）。
+"""解压 VB-CABLE 驱动包（**必须整包解压**，不能只拿 exe）。
 
-为什么不用 PowerShell 的 Expand-Archive：在无交互/重定向输出的环境里它会调用
-Write-Progress，某些主机会抛 "Access is denied ... console output buffer"。
-zipfile 没有这个问题。
+为什么：`VBCABLE_Setup_x64.exe` 不是自包含安装器，它安装时需要同目录下的
+`vbMmeCable64_win7.inf` / `vbaudio_cable64_win7.sys` / `.cat` 等文件。
+只复制 exe 会报 "Missing 'inf' file or Driver package corrupted..."。
 
 用法：
-    python packaging/extract_cable.py <zip> <输出目录> [目标文件名]
+    python packaging/extract_cable.py <zip> <输出目录>
 """
 
 from __future__ import annotations
@@ -17,23 +17,20 @@ from pathlib import Path
 
 def main() -> int:
     if len(sys.argv) < 3:
-        print("usage: extract_cable.py <zip> <outdir> [name]")
+        print("usage: extract_cable.py <zip> <outdir>")
         return 2
     archive = Path(sys.argv[1])
     outdir = Path(sys.argv[2])
-    target = sys.argv[3] if len(sys.argv) > 3 else "VBCABLE_Setup_x64.exe"
     outdir.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(archive) as zf:
-        hits = [n for n in zf.namelist() if Path(n).name.lower() == target.lower()]
-        if not hits:
-            print(f"{target} not found in {archive.name}")
-            return 1
-        member = hits[0]
-        data = zf.read(member)
-        destination = outdir / target
-        destination.write_bytes(data)
-    print(f"extracted {member} -> {destination} ({len(data)} bytes)")
+        names = zf.namelist()
+        zf.extractall(outdir)
+    setup = outdir / "VBCABLE_Setup_x64.exe"
+    if not setup.is_file():
+        print(f"VBCABLE_Setup_x64.exe not found in {archive.name}")
+        return 1
+    print(f"extracted {len(names)} files -> {outdir} (setup: {setup.name})")
     return 0
 
 
