@@ -13,6 +13,7 @@ SVG 源文件统一写 ``stroke="currentColor"``，这里把 ``currentColor`` �
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -68,9 +69,21 @@ class IconLibrary:
         color: str | None = None,
         dpr: int | None = None,
     ) -> QPixmap:
-        """渲染成 QPixmap（透明底）。缺失图标返回空 pixmap（调用方自行降级）。"""
+        """渲染成 QPixmap（透明底）。缺失图标返回空 pixmap（调用方自行降级）。
+
+        ratio 默认取当前屏幕的 devicePixelRatio：100% → 1，150% → 2，
+        200% → 2（Qt 自身允许非整数 DPR，这里向上取整保证不糊）。
+        """
         tint = (color or theme.color("text")).lower()
-        ratio = int(dpr or 2)
+        if dpr is None:
+            try:
+                from PySide6.QtGui import QGuiApplication
+
+                screen = QGuiApplication.primaryScreen()
+                dpr = max(1, math.ceil(screen.devicePixelRatio() if screen else 1.0))
+            except Exception:  # noqa: BLE001
+                dpr = 2
+        ratio = max(1, int(dpr))
         key = (name, int(size), tint, ratio)
         cached = self._cache.get(key)
         if cached is not None:

@@ -183,7 +183,7 @@ class WaveformCanvas(QWidget):
         if not self.has_peaks():
             painter.setPen(QPen(QColor(theme.color("textFaint"))))
             font = QFont()
-            font.setPixelSize(12)
+            font.setPointSizeF(theme.font_pt("caption")[0])
             painter.setFont(font)
             painter.drawText(area, int(Qt.AlignmentFlag.AlignCenter), "正在分析波形…")
             painter.end()
@@ -351,7 +351,7 @@ class TrimTimeBar(QWidget):
         number = QLabel(value, box)
         number.setObjectName("TimerLabel")
         font = QFont()
-        font.setPixelSize(13)
+        font.setPointSizeF(theme.font_pt("body")[0])
         font.setWeight(QFont.Weight.Medium)
         number.setFont(font)
         row.addWidget(number)

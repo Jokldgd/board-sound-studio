@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFrame,
     QMainWindow,
+    QSizePolicy,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -72,7 +73,17 @@ class MainWindow(QMainWindow):
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.resize(*theme.SIZE["window"])
-        self.setMinimumSize(1040, 620)
+        # 最小尺寸：900×600（低于这个值左右两栏会开始互相挤压）
+        self.setMinimumSize(*theme.SIZE["windowMin"])
+        # 初始尺寸不超过屏幕可用区域（小屏笔记本 / 高缩放时自动收窄）
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            width = min(self.width(), max(theme.SIZE["windowMin"][0],
+                                          available.width() - 40))
+            height = min(self.height(), max(theme.SIZE["windowMin"][1],
+                                            available.height() - 60))
+            self.resize(width, height)
 
         self._quitting = False
         self._shutdown_done = False
@@ -332,11 +343,18 @@ class MainWindow(QMainWindow):
             on_config_changed=self._save_config, parent=body,
         )
         self.recorder_panel.device_center_requested.connect(self._open_device_center)
+        # 右侧固定成侧边栏：最小 340 / 最大 400，其余空间全给左侧列表
+        self.recorder_panel.setMinimumWidth(theme.SIZE["sidePanelMin"])
+        self.recorder_panel.setMaximumWidth(theme.SIZE["sidePanelMax"])
+        self.recorder_panel.setSizePolicy(QSizePolicy.Policy.Fixed,
+                                          QSizePolicy.Policy.Expanding)
         body.addWidget(left)
         body.addWidget(self.recorder_panel)
         body.setStretchFactor(0, 1)
         body.setStretchFactor(1, 0)
-        body.setSizes([theme.SIZE["window"][0] - theme.SIZE["sidePanel"],
+        body.setCollapsible(0, False)
+        body.setCollapsible(1, False)
+        body.setSizes([max(520, theme.SIZE["window"][0] - theme.SIZE["sidePanel"]),
                        theme.SIZE["sidePanel"]])
         outer.addWidget(body, 1)
         outer.addWidget(self._separator("HSep"))
@@ -480,11 +498,12 @@ class MainWindow(QMainWindow):
     def _open_device_center(self) -> None:
         """统一的设备中心：路由 / 麦克风 / 录音源。"""
         from .device_center import DeviceCenterDialog
+        from .window_utils import exec_centered
 
         capability = (None if self._app_capable is None
                       else (self._app_capable, self._app_capable_reason))
         dialog = DeviceCenterDialog(self.config, self._rules(), capability, parent=self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+        if exec_centered(dialog, self) != QDialog.DialogCode.Accepted:
             return
         values = dialog.values()
 
@@ -508,13 +527,14 @@ class MainWindow(QMainWindow):
         from PySide6.QtCore import QTimer as _QTimer
 
         from .onboarding import HelpDialog
+        from .window_utils import exec_centered
 
         dialog = HelpDialog(self)
         dialog.test_tone_requested.connect(self._on_test_route)
         dialog.device_center_requested.connect(
             lambda: (dialog.accept(), _QTimer.singleShot(0, self._open_device_center))
         )
-        dialog.exec()
+        exec_centered(dialog, self)
 
     def _maybe_show_wizard(self) -> None:
         """首次启动：3 步引导（只弹一次，记录在 config.has_launched）。"""
@@ -527,14 +547,17 @@ class MainWindow(QMainWindow):
             self.config.has_launched = True
             return
         from .onboarding import FirstRunWizard
+        from .window_utils import exec_centered
 
         wizard = FirstRunWizard(self._rules(), self)
-        wizard.exec()
+        exec_centered(wizard, self)
         self.config.has_launched = True
-        self.config.wizard_version = "1.2"
+        self.config.wizard_version = "1.3"
         self._save_config()
 
     def _open_settings(self) -> None:
+        from .window_utils import exec_centered
+
         capability = (None if self._app_capable is None
                       else (self._app_capable, self._app_capable_reason))
         dialog = SettingsDialog(
@@ -545,7 +568,7 @@ class MainWindow(QMainWindow):
         dialog.device_center_requested.connect(
             lambda: (dialog.reject(), QTimer.singleShot(0, self._open_device_center))
         )
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+        if exec_centered(dialog, self) != QDialog.DialogCode.Accepted:
             return
         values = dialog.values()
         apply_values(self.config, values)

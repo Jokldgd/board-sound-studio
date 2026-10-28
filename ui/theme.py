@@ -59,12 +59,13 @@ FAMILY_NUM = '"Inter", "Segoe UI", "Microsoft YaHei UI", sans-serif'
 FAMILY_MONO = '"Cascadia Mono", "Consolas", monospace'
 
 TYPE = {
-    "title": ("15px", 600),
-    "body": ("13px", 400),
-    "caption": ("12px", 400),
-    "badge": ("11px", 500),
-    "timer": ("22px", 600),
-    "volume": ("11px", 500),
+    # 一律用 pt（不是 px）：Qt 按 DPI 缩放 pt，125%/150%/200% 下不会因取整跳字号
+    "title": ("11pt", 600),
+    "body": ("10pt", 400),
+    "caption": ("9pt", 400),
+    "badge": ("8.5pt", 500),
+    "timer": ("16.5pt", 600),
+    "volume": ("8.5pt", 500),
 }
 
 # ---------------------------------------------------------------------------
@@ -74,14 +75,16 @@ SIZE = {
     "titleBar": 40,
     "topBar": 48,
     "bottomBar": 32,
-    "sidePanel": 340,
+    "sidePanel": 360,
+    "sidePanelMin": 340,
+    "sidePanelMax": 400,
     "toolbar": 44,
     "row": 56,
     "iconInline": 16,
     "iconBar": 20,
     "btnIcon": 28,
     "window": (1100, 680),
-    "windowMin": (960, 620),
+    "windowMin": (900, 600),
     "cardPadding": 16,
     "moduleGap": 24,
     "rowGap": 12,
@@ -166,7 +169,7 @@ def stylesheet(mode: str | None = None) -> str:
         background: {c['text']};
         color: {c['card']};
         border: none;
-        padding: 5px 8px;
+        padding: 6px 8px;
         border-radius: {RADIUS['xs']}px;
         font-size: {caption_size};
     }}
@@ -254,7 +257,7 @@ def stylesheet(mode: str | None = None) -> str:
         color: {c['textMuted']};
         background: {c['hover']};
         border-radius: {RADIUS['xs']}px;
-        padding: 1px 6px;
+        padding: 2px 6px;
         min-width: 14px;
     }}
 
@@ -543,7 +546,7 @@ def stylesheet(mode: str | None = None) -> str:
         background: transparent;
     }}
     QLabel#StatusDot {{
-        border-radius: 3px;
+        border-radius: 4px;
         background: {c['success']};
     }}
     QLabel#StatusDot[state="idle"] {{
@@ -579,11 +582,11 @@ def stylesheet(mode: str | None = None) -> str:
     QScrollBar:vertical {{
         background: transparent;
         width: 8px;
-        margin: 4px 2px;
+        margin: 4px;
     }}
     QScrollBar::handle:vertical {{
         background: {c['borderStrong']};
-        border-radius: 3px;
+        border-radius: 4px;
         min-height: 28px;
     }}
     QScrollBar::handle:vertical:hover {{
@@ -648,7 +651,40 @@ def stylesheet(mode: str | None = None) -> str:
     """
 
 
-def font_px(key: str) -> tuple[int, int]:
-    """把 ``TYPE`` 里的 "15px" 转成 (15, weight)，方便自绘控件用。"""
+def font_pt(key: str) -> tuple[float, int]:
+    """把 ``TYPE`` 里的 "10pt" 转成 (10.0, weight)，方便自绘控件用 ``setPointSizeF``。
+
+    用 **pt** 而不是 px：Qt 会按系统 DPI 自动缩放 pt，125%/150%/200% 下
+    文字不会因为"整数像素取整"而忽大忽小。
+    """
     text, weight = TYPE[key]
-    return int(text.replace("px", "")), int(weight)
+    number = text.lower().replace("pt", "").replace("px", "")
+    return float(number), int(weight)
+
+
+#: 兼容旧调用（返回四舍五入的 pt 值）
+def font_px(key: str) -> tuple[int, int]:
+    size, weight = font_pt(key)
+    return int(round(size)), weight
+
+
+def dpi_scale() -> float:
+    """当前屏幕缩放系数（96 DPI = 1.0；125% = 1.25）。
+
+    只给"必须手算像素"的地方用（例如弹层定位、滚动条宽度），布局本身交给 Qt。
+    """
+    try:
+        from PySide6.QtGui import QGuiApplication
+
+        screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            return 1.0
+        return max(1.0, float(screen.logicalDotsPerInch()) / 96.0)
+    except Exception:  # noqa: BLE001
+        return 1.0
+
+
+def diu(value: float) -> int:
+    """把逻辑像素换成"当前 DPI 下的整数像素"，并保证是偶数（避免半像素）。"""
+    scaled = int(round(value * dpi_scale()))
+    return scaled + (scaled % 2)

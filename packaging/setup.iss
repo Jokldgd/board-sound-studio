@@ -14,7 +14,7 @@
 ; ============================================================================
 
 #define AppName        "Soundboard Studio"
-#define AppVersion     "1.2.2"
+#define AppVersion     "1.3.0"
 #define AppPublisher   "Jokldgd"
 #define AppURL         "https://github.com/Jokldgd/board-sound-studio"
 #define AppExeName     "SoundboardStudio.exe"

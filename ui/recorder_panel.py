@@ -598,12 +598,14 @@ class RecorderPanel(QWidget):
             return
         from .trimmer_dialog import TrimmerDialog
 
+        from .window_utils import exec_centered
+
         dialog = TrimmerDialog(
             self._data, self._rate,
             title=f"裁剪「{self.name_edit.text().strip() or clip_library.friendly_name()}」",
             parent=self,
         )
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+        if exec_centered(dialog, self.window()) != QDialog.DialogCode.Accepted:
             return
 
         trimmed = dialog.trimmed()

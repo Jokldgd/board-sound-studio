@@ -102,9 +102,9 @@ class HotkeyBadge(QWidget):
         return display_hotkey(self._hotkey)
 
     def _font(self) -> QFont:
-        size, weight = theme.font_px("badge")
+        size, weight = theme.font_pt("badge")
         font = QFont()
-        font.setPixelSize(size)
+        font.setPointSizeF(size)
         font.setWeight(QFont.Weight(weight))
         return font
 

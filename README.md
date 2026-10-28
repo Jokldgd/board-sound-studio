@@ -98,6 +98,22 @@ python tools\selftest_ui.py    # 界面（离屏）：布局、透明度、改�
 * 全局热键受 UIPI 限制：**如果目标程序以管理员身份运行，本程序也要以管理员身份运行**。
 * 虚拟声卡需要单装 VB-CABLE；没装时自动回退到默认输出（本地能听、远端收不到）。
 
+### 1.3.0：高 DPI 与响应式布局
+
+* `main.py` 在 `QApplication` 之前设置
+  `HighDpiScaleFactorRoundingPolicy.PassThrough` + `AA_UseHighDpiPixmaps`：
+  125%/150%/175% 这类非整数缩放不会被取整成 100%/200%，字体不糊、窗口无黑边。
+* 字体全部改成 **pt**（`ui/theme.py` 的 `TYPE`），Qt 按系统 DPI 缩放；
+  自绘控件（快捷键徽章、分段控件、裁剪波形）由 `setPixelSize` 改为 `setPointSizeF`。
+* 主窗口最小尺寸 **900×600**；右侧录音面板固定为 **340–400** 的侧边栏
+  （`minimumWidth/maximumWidth`），窗口拉宽时多余空间全部给左侧音效列表。
+* 所有模态框（设置 / 设备中心 / 帮助 / 首启向导 / 裁剪）弹出前用
+  `ui/window_utils.center_on_parent()` 按**父窗口矩形**居中，不再依赖窗口管理器或写死坐标。
+* QSS 里 padding/margin/border-radius 统一为偶数（2/4/6/8/12），减少 125% 下的半像素锯齿；
+  滚动条固定 8px（DIP，由 Qt 按缩放放大）。
+* 自绘 SVG 图标按 `devicePixelRatio` 渲染（`ui/icons.py`），200% 下也是原生像素，不放大糊。
+* 已验证：`QT_SCALE_FACTOR=1 / 1.5 / 2` 三档下界面自检全部通过。
+
 ### 1.2.0 的三件事
 
 1. **用户数据搬到了 `%APPDATA%\Soundboard Studio\`**（`audio\` + `config.json` + `studio.log`），

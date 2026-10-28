@@ -154,9 +154,9 @@ class Segmented(QWidget):
         painter.setBrush(QColor(theme.color("canvas")))
         painter.drawRoundedRect(QRectF(0, 0, self.width(), self.height()), radius, radius)
 
-        font_px, weight = theme.font_px("caption")
+        font_pt, weight = theme.font_pt("caption")
         font = QFont()
-        font.setPixelSize(font_px)
+        font.setPointSizeF(font_pt)
         font.setWeight(QFont.Weight(weight))
 
         for index, item in enumerate(self._items):

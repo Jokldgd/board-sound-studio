@@ -16,7 +16,7 @@ import threading
 import traceback
 from logging.handlers import RotatingFileHandler
 
-from PySide6.QtCore import QtMsgType, QTimer, qInstallMessageHandler
+from PySide6.QtCore import Qt, QtMsgType, QTimer, qInstallMessageHandler
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -163,6 +163,14 @@ def main() -> int:
         )
 
     _set_app_user_model_id()
+
+    # ---- 高 DPI（必须在 QApplication 之前设置）----
+    # PassThrough：125% / 150% / 175% 这类非整数缩放不再被四舍五入成 100%/200%，
+    # 避免"字体被拉糊"或"窗口四周出现黑边"。
+    QApplication.setHighDpiScaleFactorRoundingPolicy(
+        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+    )
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
     app.setApplicationName("SoundboardStudio")
     app.setApplicationDisplayName("Soundboard Studio")
