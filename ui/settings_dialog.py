@@ -122,6 +122,8 @@ class SettingsDialog(QDialog):
 
     route_probe_requested = Signal()
     open_sound_settings_requested = Signal()
+    #: 1.2.0：路由/设备统一到「设备中心」，设置里只留入口
+    device_center_requested = Signal()
 
     def __init__(
         self,
@@ -268,6 +270,23 @@ class SettingsDialog(QDialog):
         ):
             self.route_combo.addItem(text, mode)
         layout.addWidget(self._row("路由模式", self.route_combo, box))
+        # 1.2.0：主界面和设置都不再直接改路由/设备，统一进「设备中心」
+        self.route_combo.setVisible(False)
+        center_row = QWidget(box)
+        center_layout = QHBoxLayout(center_row)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(theme.SPACE["sm"])
+        center_note = QLabel("播放路由、麦克风、录音源请在「设备中心」里修改", center_row)
+        center_note.setObjectName("HintLabel")
+        center_note.setWordWrap(True)
+        _allow_shrink(center_note)
+        center_layout.addWidget(center_note, 1)
+        self.device_center_button = QPushButton("打开设备中心…", center_row)
+        self.device_center_button.setObjectName("SecondaryButton")
+        self.device_center_button.setFixedHeight(30)
+        self.device_center_button.clicked.connect(self.device_center_requested.emit)
+        center_layout.addWidget(self.device_center_button)
+        layout.addWidget(center_row)
 
         self.cable_label = QLabel("", box)
         self.cable_label.setObjectName("Caption")

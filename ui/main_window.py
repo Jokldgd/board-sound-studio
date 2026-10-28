@@ -127,6 +127,8 @@ class MainWindow(QMainWindow):
         self._warn_cable_health()
         # 启动后自检列表行几何：真机上若出现"行没被布局"，这里会自愈并写日志
         QTimer.singleShot(350, self._audit_clip_rows)
+        # 首次启动引导（异步，避免阻塞窗口显示）
+        QTimer.singleShot(600, self._maybe_show_wizard)
 
     def _audit_clip_rows(self) -> None:
         try:
@@ -305,6 +307,8 @@ class MainWindow(QMainWindow):
         self.top_bar.test_route_requested.connect(self._on_test_route)
         self.top_bar.open_sound_settings_requested.connect(self._on_open_sound_settings)
         self.top_bar.mixer_changed.connect(self._on_mixer_changed)
+        self.top_bar.device_center_requested.connect(self._open_device_center)
+        self.top_bar.help_requested.connect(self._open_help)
         self.top_bar.bind_route(self.config.route())
         self.top_bar.set_route_status(self._route_status)
         self.top_bar.bind_mixer(self.config.mixer_settings())
@@ -327,6 +331,7 @@ class MainWindow(QMainWindow):
             self.recorder_engine, self.library, self.config,
             on_config_changed=self._save_config, parent=body,
         )
+        self.recorder_panel.device_center_requested.connect(self._open_device_center)
         body.addWidget(left)
         body.addWidget(self.recorder_panel)
         body.setStretchFactor(0, 1)
@@ -462,6 +467,63 @@ class MainWindow(QMainWindow):
         if not ok:
             self.show_error(f"单个应用模式不可用：{reason}")
 
+    def _open_device_center(self) -> None:
+        """统一的设备中心：路由 / 麦克风 / 录音源。"""
+        from .device_center import DeviceCenterDialog
+
+        capability = (None if self._app_capable is None
+                      else (self._app_capable, self._app_capable_reason))
+        dialog = DeviceCenterDialog(self.config, self._rules(), capability, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        values = dialog.values()
+
+        # 1) 混音（麦克风/开关）先应用：会重开音频流
+        self._on_mixer_changed(values["mixer"])
+        # 2) 路由
+        self._on_route_changed(values["route"])
+        # 3) 录音源
+        self.config.record_mode = values["record_mode"]
+        if values.get("mic_device"):
+            self.config.mic_device = values["mic_device"]
+        if values.get("system_device"):
+            self.config.system_device = values["system_device"]
+        if values.get("app_pid"):
+            self.config.app_pid = values["app_pid"]
+        self.recorder_panel.bind_config(self.config, self._rules())
+        self._save_config()
+        self.show_message("设备设置已应用")
+
+    def _open_help(self) -> None:
+        from PySide6.QtCore import QTimer as _QTimer
+
+        from .onboarding import HelpDialog
+
+        dialog = HelpDialog(self)
+        dialog.test_tone_requested.connect(self._on_test_route)
+        dialog.device_center_requested.connect(
+            lambda: (dialog.accept(), _QTimer.singleShot(0, self._open_device_center))
+        )
+        dialog.exec()
+
+    def _maybe_show_wizard(self) -> None:
+        """首次启动：3 步引导（只弹一次，记录在 config.has_launched）。"""
+        import os
+
+        if self.config.has_launched:
+            return
+        if os.environ.get("STUDIO_NO_WIZARD", "").strip() not in ("", "0", "false"):
+            # 自动化测试/无人值守环境跳过模态向导
+            self.config.has_launched = True
+            return
+        from .onboarding import FirstRunWizard
+
+        wizard = FirstRunWizard(self._rules(), self)
+        wizard.exec()
+        self.config.has_launched = True
+        self.config.wizard_version = "1.2"
+        self._save_config()
+
     def _open_settings(self) -> None:
         capability = (None if self._app_capable is None
                       else (self._app_capable, self._app_capable_reason))
@@ -470,6 +532,9 @@ class MainWindow(QMainWindow):
         )
         dialog.route_probe_requested.connect(self._reprobe_vb_cable)
         dialog.open_sound_settings_requested.connect(self._on_open_sound_settings)
+        dialog.device_center_requested.connect(
+            lambda: (dialog.reject(), QTimer.singleShot(0, self._open_device_center))
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         values = dialog.values()

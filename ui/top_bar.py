@@ -223,6 +223,8 @@ class TopBar(QWidget):
     error = Signal(str)
     settings_requested = Signal()
     mixer_changed = Signal(object)      # MixerSettings
+    device_center_requested = Signal()
+    help_requested = Signal()
 
     def __init__(
         self,
@@ -245,20 +247,15 @@ class TopBar(QWidget):
         layout.setContentsMargins(theme.SPACE["lg"], 0, theme.SPACE["lg"], 0)
         layout.setSpacing(theme.SPACE["md"])
 
-        # ---------------- 路由模式 ----------------
+        # ---------------- 路由模式（1.2.0：主界面只读，改设备去「设备中心」） ----------------
         self.route_combo = QComboBox(self)
         self.route_combo.setObjectName("FlatCombo")
         self.route_combo.setFixedWidth(210)
         self.route_combo.setFixedHeight(28)
-        self.route_combo.setToolTip(
-            "音频往哪里送：\n"
-            "· 虚拟声卡：只写 CABLE Input，本地声音靠 Windows「侦听此设备」\n"
-            "· 仅本地：不发送给语音软件"
-        )
         for mode in (ROUTE_VIRTUAL, ROUTE_LOCAL):
             self.route_combo.addItem(ROUTE_LABELS[mode], mode)
         self.route_combo.currentIndexChanged.connect(self._on_route_mode_changed)
-        layout.addWidget(self.route_combo)
+        self.route_combo.setVisible(False)      # 只读：真正修改在设备中心
 
         # ---------------- 设备 / 状态区 ----------------
         self.route_stack = QStackedWidget(self)
@@ -267,7 +264,28 @@ class TopBar(QWidget):
         self.route_stack.addWidget(self._build_virtual_page())
         self.route_stack.addWidget(self._build_dual_page())
         self.route_stack.addWidget(self._build_local_page())
-        layout.addWidget(self.route_stack, 1)
+        self.route_stack.setVisible(False)      # 由只读摘要代替
+
+        # 只读摘要 + 设备中心 + 帮助
+        summary_row = QHBoxLayout()
+        summary_row.setContentsMargins(0, 0, 0, 0)
+        summary_row.setSpacing(theme.SPACE["xs"])
+
+        self.route_summary = QLabel("输出：检测中…", self)
+        self.route_summary.setObjectName("Caption")
+        self.route_summary.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        summary_row.addWidget(self.route_summary)
+
+        self.device_button = IconButton(
+            "sliders-horizontal", 16, 28, "ghost", "设备中心：路由 / 麦克风 / 录音源", self
+        )
+        self.device_button.clicked.connect(self.device_center_requested.emit)
+        summary_row.addWidget(self.device_button)
+
+        self.help_button = IconButton("help-circle", 16, 28, "ghost", "帮助与指引", self)
+        self.help_button.clicked.connect(self.help_requested.emit)
+        summary_row.addWidget(self.help_button)
+        layout.addLayout(summary_row, 1)
 
         # ---------------- 两个动作按钮 ----------------
         self.test_button = IconButton(
@@ -635,6 +653,23 @@ class TopBar(QWidget):
             f"当前：{status.primary_label} · {status.samplerate}Hz" if status.primary_ok
             else (status.primary_error or "未打开")
         )
+
+        # 1.2.0：顶栏只显示一行状态摘要（改设备去设备中心）
+        if status.effective_mode == ROUTE_LOCAL:
+            summary = f"输出：本地扬声器 · {status.primary_label or '默认设备'}"
+        elif not cable_ok:
+            summary = "输出：未检测到 VB-CABLE（点右侧设备中心查看）"
+        else:
+            summary = f"输出：{status.primary_label or 'CABLE Input'}"
+        if status.degraded:
+            summary += "（已降级）"
+        if mismatch:
+            summary += " ⚠ 采样率不一致"
+        self.route_summary.setText(summary)
+        self.route_summary.setToolTip(tooltip)
+        self.route_summary.setProperty("state", "warning" if (status.degraded or mismatch
+                                                             or not cable_ok) else "ok")
+        self._repolish(self.route_summary)
 
         if status.effective_mode == ROUTE_DUAL:
             self.dual_badge.setPixmap(icons.pixmap("check", 14, theme.color("success")))

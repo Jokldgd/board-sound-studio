@@ -29,16 +29,27 @@ Soundboard Studio 1.1.0 安装说明（给测试人员）
 三、装完之后怎么用（OOPZ / Discord / 游戏）
 
   1. 打开 Soundboard Studio；
-  2. 顶栏路由保持「虚拟声卡（推荐）」；
+  2. 顶栏右侧「设备中心」按钮：确认「播放与混音路由」是虚拟声卡；
   3. 语音软件的“麦克风/输入设备”选：CABLE Output (VB-Audio Virtual Cable)；
-  4. 想本地也听到音效（又不想听到自己说话）：顶栏 🎙 → 勾选
-     「本地也播放音效（不含麦克风）」。
+  4. 想本地也听到音效（又不想听到自己说话）：顶栏混音按钮 →
+     勾选「本地也播放音效（不含麦克风）」。
 
-四、安装位置与数据
+  第一次启动会有 3 步引导，跟着点完即可；右上角 [?] 随时可以再看帮助。
 
-  程序目录：C:\Program Files\Soundboard Studio
-  你的录音、config.json、studio.log 都在这个目录下（可正常写入）。
-  卸载不会删除 audio\ 里的录音。
+四、安装位置与数据（1.2.0 起）
+
+  程序目录：C:\Program Files\Soundboard Studio（只有程序本体，不含用户数据）
+  用户数据：%APPDATA%\Soundboard Studio\
+      ├─ audio\        录音与导入的音效
+      ├─ config.json   配置（含音效列表、快捷键）
+      └─ studio.log    日志
+
+  从旧版本升级：首次启动会自动把程序目录里的 audio\ 与 config.json
+  **复制**到 %APPDATA%（原文件保留，不删除）。
+
+  卸载时程序会问你「是否要保留您的录音、音效文件和软件配置？」：
+      选“是”（默认）→ 只删程序，数据完整保留，重装后自动沿用；
+      选“否” → 二次确认后才删除 %APPDATA%\Soundboard Studio。
 
 五、常见问题
 

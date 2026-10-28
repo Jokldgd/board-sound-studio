@@ -34,6 +34,18 @@ soundboard_studio/
    - 或手动把 zip 交给脚本：`-CableZip D:\VBCABLE_Driver_Pack43.zip`
    - 脚本会用 Authenticode 校验发布者为 `VB-Audio / Vincent Burel`，不符直接拒绝打包。
 
+## 1.2.0：数据搬到 %APPDATA%、安全卸载、设备中心、新手引导
+
+* **用户数据与程序分离**：`%APPDATA%\Soundboard Studio\`（`audio\` / `config.json` / `studio.log`）。
+  安装目录只放程序本体，卸载删 Program Files 不会再碰录音。
+* **卸载二次确认**：`[Code]` 的 `CurUninstallStepChanged` 问「是否保留录音、音效和配置？」，
+  默认保留；只有选“否”并再次确认才会 `DelTree(%APPDATA%\Soundboard Studio)`。
+  `[UninstallDelete]` **没有**指向用户数据目录。
+* **老数据自动迁移**：首次启动把程序目录的 `audio\` + `config.json` **复制**到 APPDATA
+  （原文件保留，可回滚）；只做一次（写 `.migrated-from-install-dir` 标记）。
+* 安装包装完也不再需要给安装目录加写权限（`[Dirs]` 已移除 `users-modify`）。
+* 版本号 `1.2.0`，产物 `installer\SoundboardStudio-Setup-1.2.0.exe`。
+
 ## 1.1.0 的“傻瓜式”改动（重要）
 
 * **检测修好了**：设备友好名称在 `...\Render\<GUID>\Properties` 下（值名才是属性 GUID）。

@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -57,6 +59,14 @@ def mouse_event(kind: QEvent.Type, pos: QPoint, button: Qt.MouseButton) -> QMous
 
 
 def main() -> int:
+    # 首启向导是模态对话框，离屏测试里会卡住事件循环：跳过
+    os.environ["STUDIO_NO_WIZARD"] = "1"
+    # 用户数据（audio/config/log）也隔离到 temp，绝不碰真实的 %APPDATA%
+    ROOT.joinpath("temp").mkdir(parents=True, exist_ok=True)
+    data_dir = ROOT / "temp" / "_ui_data"
+    shutil.rmtree(data_dir, ignore_errors=True)   # 每次从干净数据目录开始
+    data_dir.mkdir(parents=True, exist_ok=True)
+    os.environ["SOUNDBOARD_DATA_DIR"] = str(data_dir)
     # 用独立配置：绝不碰用户真实的 config.json / audio/
     ROOT.joinpath("temp").mkdir(parents=True, exist_ok=True)
     cfg_path = ROOT / "temp" / "_ui_selftest_config.json"
@@ -94,6 +104,56 @@ def main() -> int:
     window.showNormal()
     pump(app, 0.4)
     check("从最小化可以还原", not window.isMinimized(), str(window.windowState()))
+
+    # ---------------- 0b. 设备中心 / 首启向导 / 帮助 ----------------
+    from ui.device_center import DeviceCenterDialog
+    from ui.onboarding import FirstRunWizard, HelpDialog
+
+    rules_now = device_enum.merge_rules(None)
+    center = DeviceCenterDialog(window.config, rules_now, (True, "ok"), parent=window)
+    center.show()
+    pump(app, 0.35)
+    check("设备中心能打开", center.isVisible())
+    check("设备中心三块齐全",
+          all(hasattr(center, name) for name in
+              ("route_combo", "mic_combo", "mode_combo", "target_combo")),
+          "route/mic/mode/target")
+    center_values = center.values()
+    check("设备中心返回完整设置",
+          {"route", "mixer", "record_mode", "mic_device", "system_device"} <= set(center_values),
+          str(sorted(center_values)))
+    center.close()
+
+    wizard = FirstRunWizard(rules_now, parent=window)
+    wizard.show()
+    pump(app, 0.3)
+    check("首启向导共 3 步", wizard.stack.count() == 3, str(wizard.stack.count()))
+    wizard._go_next()
+    wizard._go_next()
+    pump(app, 0.15)
+    check("向导能走到第 3 步", wizard.stack.currentIndex() == 2,
+          str(wizard.stack.currentIndex()))
+    wizard.close()
+
+    help_dialog = HelpDialog(window)
+    help_dialog.show()
+    pump(app, 0.25)
+    check("帮助窗口能打开", help_dialog.isVisible())
+    help_dialog.close()
+
+    check("顶栏路由改为只读摘要（下拉已隐藏）",
+          not window.top_bar.route_combo.isVisible()
+          and window.top_bar.route_summary.isVisible())
+    check("顶栏有设备中心与帮助按钮",
+          hasattr(window.top_bar, "device_button")
+          and hasattr(window.top_bar, "help_button"))
+    check("录音面板显示只读录音源摘要",
+          window.recorder_panel.source_summary.isVisible()
+          and "录音源" in window.recorder_panel.source_summary.text(),
+          window.recorder_panel.source_summary.text())
+    check("录音面板隐藏了旧的下拉/分段",
+          not window.recorder_panel.segmented.isVisible()
+          and not window.recorder_panel.target_combo.isVisible())
 
     # ---------------- 1. 边缘命中（纯函数） ----------------
     width, height = window.width(), window.height()
@@ -466,10 +526,10 @@ def main() -> int:
         check("行内标签同步更新", rename_row._name_full == new_name, rename_row._name_full)
         check("输入框已收起、标签恢复", not rename_row.name_edit.isVisible()
               and rename_row.name_label.isVisible())
-        check("改名已落盘到配置",
-              any(c.get("name") == new_name
-                  for c in window.config.to_dict().get("clips", [])),
-              "config.clips")
+        check("改名写进音效库（4d2）",
+              window.library.get(rename_row.clip_id) is not None
+              and window.library.get(rename_row.clip_id).name == new_name,
+              "library")
         # 改回去，避免影响后续用例
         rename_row._begin_rename(None)
         rename_row.name_edit.setText(old_name)

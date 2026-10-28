@@ -14,7 +14,7 @@
 ; ============================================================================
 
 #define AppName        "Soundboard Studio"
-#define AppVersion     "1.1.0"
+#define AppVersion     "1.2.0"
 #define AppPublisher   "Jokldgd"
 #define AppURL         "https://github.com/Jokldgd/board-sound-studio"
 #define AppExeName     "SoundboardStudio.exe"
@@ -80,8 +80,8 @@ Source: "{#CableSetup}"; DestDir: "{app}\redist"; Flags: ignoreversion
 Source: "extra\repair-cable.cmd"; DestDir: "{app}"; DestName: "修复虚拟声卡.cmd"; Flags: ignoreversion
 
 [Dirs]
-Name: "{app}";       Permissions: users-modify
-Name: "{app}\audio"; Permissions: users-modify
+; 1.2.0：程序目录不再存用户数据（数据在 %APPDATA%\Soundboard Studio），
+; 因此不需要给安装目录加写权限 —— 更安全，也避免杀软误判。
 
 [Icons]
 Name: "{group}\{#AppName}";                Filename: "{app}\{#AppExeName}"
@@ -278,5 +278,42 @@ begin
                   '/r /t 15 /c "Soundboard Studio: 安装虚拟声卡后需要重启"',
                   '', SW_SHOW, ewNoWait, Code);
     end;
+  end;
+end;
+
+{ ==========================================================================
+  卸载：**绝不默认删除用户数据**
+  用户数据在 %APPDATA%\Soundboard Studio（录音 / 音效 / config.json）。
+  卸载程序只删自己安装的程序文件；这里再问一次是否保留数据：
+    是（默认）→ 原样保留
+    否         → 二次确认后删除整个数据目录
+  ========================================================================== }
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  DataDir: String;
+begin
+  if CurUninstallStep <> usPostUninstall then
+    Exit;
+
+  DataDir := ExpandConstant('{userappdata}\Soundboard Studio');
+  if not DirExists(DataDir) then
+    Exit;
+
+  if MsgBox('是否要保留您的录音、音效文件和软件配置？' + #13#10 + #13#10 +
+            '数据位置：' + DataDir + #13#10 + #13#10 +
+            '· 选择「是」= 保留（推荐：以后重装会自动沿用）' + #13#10 +
+            '· 选择「否」= 彻底删除（不可恢复）',
+            mbConfirmation, MB_YESNO) = IDYES then
+    Exit;
+
+  if MsgBox('再次确认：删除后所有录音与配置都无法恢复。' + #13#10 +
+            '确定要彻底删除用户数据吗？',
+            mbConfirmation, MB_YESNO) = IDYES then
+  begin
+    if DelTree(DataDir, True, True, True) then
+      MsgBox('用户数据已删除。', mbInformation, MB_OK)
+    else
+      MsgBox('删除未完全成功（可能有文件被占用）。可以手动删除：' + #13#10 + DataDir,
+             mbError, MB_OK);
   end;
 end;

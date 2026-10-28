@@ -669,6 +669,33 @@ def test_hotkeys() -> None:
     check("停止热键管理器", not manager.started)
 
 
+def test_migration() -> None:
+    """1.2.0：老版本把数据放在程序目录，首次启动应复制到数据目录。"""
+    import shutil as _shutil
+
+    from core import paths
+
+    legacy_audio = WORK / "audio"
+    legacy_audio.mkdir(parents=True, exist_ok=True)
+    legacy_wav = legacy_audio / "rec_legacy.wav"
+    audio_io.write_wav(legacy_wav, sine(0.2), SAMPLE_RATE)
+    (WORK / "config.json").write_text('{"version": 1}', encoding="utf-8")
+
+    data = WORK / "data"
+    _shutil.rmtree(data, ignore_errors=True)
+
+    first = paths.migrate_legacy_data()
+    check("首次启动迁移旧数据", bool(first["migrated"]) and first["files"] >= 1,
+          str(first))
+    check("录音被复制到数据目录",
+          (data / "audio" / "rec_legacy.wav").is_file())
+    check("配置被复制到数据目录", (data / "config.json").is_file())
+    check("旧文件保留（可回滚）", legacy_wav.is_file())
+
+    second = paths.migrate_legacy_data()
+    check("迁移只执行一次", not bool(second["migrated"]), str(second))
+
+
 # ---------------------------------------------------------------- 主流程
 def main() -> int:
     shutil.rmtree(WORK, ignore_errors=True)
@@ -687,6 +714,10 @@ def main() -> int:
             lambda rel: Path(rel) if Path(rel).is_absolute() else WORK / Path(rel)
         )
         paths_module.to_relative = lambda abs_path: Path(abs_path).as_posix()  # type: ignore[assignment]
+        # 1.2.0：用户数据目录（迁移测试用；也保证不写真实 %APPDATA%）
+        paths_module.data_dir = lambda: (WORK / "data")  # type: ignore[assignment]
+        import os as _os
+        _os.environ["SOUNDBOARD_DATA_DIR"] = str(WORK / "data")
 
         test_config()
         test_library()
@@ -697,6 +728,7 @@ def main() -> int:
         test_peaks()
         test_recorder()
         test_hotkeys()
+        test_migration()
     finally:
         shutil.rmtree(WORK, ignore_errors=True)
 

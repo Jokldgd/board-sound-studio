@@ -77,6 +77,8 @@ class RecorderPanel(QWidget):
     mode_changed = Signal(str)
     target_changed = Signal()
     refresh_requested = Signal()
+    #: 1.2.0：主界面只读，改录音源去「设备中心」
+    device_center_requested = Signal()
 
     def __init__(
         self,
@@ -159,6 +161,25 @@ class RecorderPanel(QWidget):
         self.target_hint.setObjectName("HintLabel")
         self.target_hint.setWordWrap(True)
         layout.addWidget(self.target_hint)
+
+        # ---- 1.2.0：主界面只读摘要，改设备统一去「设备中心」 ----
+        for widget in (self.segmented, self.target_combo,
+                       self.refresh_target_button, self.target_hint):
+            widget.setVisible(False)
+
+        source_row = QHBoxLayout()
+        source_row.setContentsMargins(0, 0, 0, 0)
+        source_row.setSpacing(theme.SPACE["sm"])
+        self.source_summary = QLabel("录音源：—", content)
+        self.source_summary.setObjectName("Caption")
+        self.source_summary.setWordWrap(False)
+        source_row.addWidget(self.source_summary, 1)
+        self.source_button = QPushButton("修改", content)
+        self.source_button.setObjectName("SecondaryButton")
+        self.source_button.setFixedHeight(28)
+        self.source_button.clicked.connect(self.device_center_requested.emit)
+        source_row.addWidget(self.source_button)
+        layout.insertWidget(0, self._wrap_row(source_row, content))
 
         # ---- 区块 3：电平条 ----
         layout.addSpacing(theme.SPACE["xl"])
@@ -270,6 +291,24 @@ class RecorderPanel(QWidget):
         self._timer.start()
 
     # ------------------------------------------------------------------ 配置
+    @staticmethod
+    def _wrap_row(layout: QHBoxLayout, parent: QWidget) -> QWidget:
+        """把 QHBoxLayout 包成一个 QWidget，方便 insertWidget 控制位置。"""
+        holder = QWidget(parent)
+        layout.setContentsMargins(0, 0, 0, 0)
+        holder.setLayout(layout)
+        return holder
+
+    def update_source_summary(self) -> None:
+        """主界面只读摘要：录音源 + 当前目标。"""
+        mode = self.current_mode()
+        label = {MODE_MIC: "麦克风", MODE_SYSTEM: "系统声音", MODE_APP: "单个应用"}.get(mode, mode)
+        target = self.current_target_label() or "未选择"
+        self.source_summary.setText(f"录音源：{label} · {target}")
+        self.source_summary.setToolTip(
+            f"当前录制：{label} / {target}。点右侧「修改」打开设备中心。"
+        )
+
     def bind_config(self, config, rules: dict) -> None:  # noqa: ANN001
         self.config = config
         self._rules = rules
@@ -280,6 +319,7 @@ class RecorderPanel(QWidget):
         self.segmented.setCurrent(mode)
         if hasattr(self, "_rules"):
             self.reload_targets()
+        self.update_source_summary()
 
     def set_capability(self, ok: bool, reason: str) -> None:
         self._app_ok = bool(ok)
@@ -388,9 +428,11 @@ class RecorderPanel(QWidget):
         self.config.record_mode = mode
         self._on_config_changed()
         self.reload_targets()
+        self.update_source_summary()
         self.mode_changed.emit(mode)
 
     def _on_target_changed(self, _index: int) -> None:
+        self.update_source_summary()
         if not self._choices:
             return
         self.target_changed.emit()

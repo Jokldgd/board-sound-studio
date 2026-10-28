@@ -84,6 +84,10 @@ class StudioConfig:
     app_show_inferred: bool = True
     show_all_devices: bool = False
     device_name_rules: dict[str, Any] = field(default_factory=dict)
+    #: 首次启动引导是否已经看过（1.2.0 起）
+    has_launched: bool = False
+    #: 引导版本：以后加新步骤可以再弹一次（例如 "1.2"）
+    wizard_version: str = ""
 
     # ---------------- 音效列表 ----------------
     clips: list[Clip] = field(default_factory=list)
@@ -148,6 +152,8 @@ class StudioConfig:
             "app_show_inferred": self.app_show_inferred,
             "show_all_devices": self.show_all_devices,
             "device_name_rules": self.device_name_rules,
+            "has_launched": self.has_launched,
+            "wizard_version": self.wizard_version,
             "clips": [clip.to_dict() for clip in self.clips],
         }
 
@@ -241,6 +247,8 @@ class StudioConfig:
             app_show_inferred=bool(data.get("app_show_inferred", True)),
             show_all_devices=bool(data.get("show_all_devices", False)),
             device_name_rules=rules if isinstance(rules, dict) else {},
+            has_launched=bool(data.get("has_launched", False)),
+            wizard_version=str(data.get("wizard_version") or ""),
             clips=clips,
         )
 

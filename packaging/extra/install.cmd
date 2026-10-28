@@ -10,11 +10,9 @@ rem  Testers: just double-click this file (one UAC prompt, click Yes).
 rem ============================================================================
 setlocal
 
-set "SETUP=%~dp0SoundboardStudio-Setup-1.1.0.exe"
-if not exist "%SETUP%" (
-    for %%F in ("%~dp0SoundboardStudio-Setup-*.exe") do set "SETUP=%%~fF"
-)
-if not exist "%SETUP%" (
+set "SETUP="
+for %%F in ("%~dp0SoundboardStudio-Setup-*.exe") do set "SETUP=%%~fF"
+if not defined SETUP (
     echo [ERROR] Setup exe not found next to this script.
     pause
     exit /b 1

@@ -150,8 +150,16 @@ def _set_app_user_model_id() -> None:
 
 
 def main() -> int:
+    # 1.2.0 起用户数据在 %APPDATA%\Soundboard Studio；先把老版本放在程序目录里的
+    # 数据搬过去（只复制、不删除），再初始化日志（日志也写到数据目录）。
+    migration = paths.migrate_legacy_data()
     setup_logging()
-    logger.info("启动，基准目录 %s", paths.base_dir())
+    logger.info("启动，程序目录 %s", paths.base_dir())
+    logger.info("数据目录 %s", paths.data_dir())
+    if migration["migrated"]:
+        logger.info(
+            "已从旧位置迁移 %s 个文件：%s", migration["files"], migration["source"]
+        )
 
     _set_app_user_model_id()
     app = QApplication(sys.argv)
