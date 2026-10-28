@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFrame,
     QMainWindow,
+    QMessageBox,
     QSizePolicy,
     QSplitter,
     QVBoxLayout,
@@ -138,6 +139,8 @@ class MainWindow(QMainWindow):
         self._warn_cable_health()
         # 启动后自检列表行几何：真机上若出现"行没被布局"，这里会自愈并写日志
         QTimer.singleShot(350, self._audit_clip_rows)
+        # 数据目录被安全软件拦截时，明确告诉用户（否则录音会写到临时目录）
+        QTimer.singleShot(900, self._warn_if_data_dir_fallback)
         # 首次启动引导（异步，避免阻塞窗口显示）
         QTimer.singleShot(600, self._maybe_show_wizard)
 
@@ -535,6 +538,28 @@ class MainWindow(QMainWindow):
             lambda: (dialog.accept(), _QTimer.singleShot(0, self._open_device_center))
         )
         exec_centered(dialog, self)
+
+    def _warn_if_data_dir_fallback(self) -> None:
+        """数据目录写不进去时（杀软/受控文件夹访问），明确提示用户。"""
+        from core import paths as _paths
+
+        current = _paths.data_dir()
+        default = _paths.default_data_dir()
+        try:
+            same = current.resolve() == default.resolve()
+        except OSError:
+            same = False
+        if same:
+            return
+        QMessageBox.warning(
+            self,
+            "数据目录被拦截",
+            f"无法写入默认数据目录：\n{default}\n\n"
+            f"已临时改用：\n{current}\n\n"
+            "常见原因：杀毒软件 / Windows「受控文件夹访问」拦截了本程序。\n"
+            "请把 SoundboardStudio.exe 加入白名单，然后重启本程序；"
+            "否则录音与配置会保存在上面这个备用目录里。",
+        )
 
     def _maybe_show_wizard(self) -> None:
         """首次启动：3 步引导（只弹一次，记录在 config.has_launched）。"""

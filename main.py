@@ -97,11 +97,23 @@ def _install_excepthook() -> None:
     def hook(exc_type, exc, tb) -> None:  # noqa: ANN001
         text = "".join(traceback.format_exception(exc_type, exc, tb))
         logger.error("未捕获异常：\n%s", text)
+        # OSError（WinError 5/32…）通常是安全软件/受控文件夹访问拦截写盘，
+        # 直接给用户一句能照做的提示，而不是裸的 WinError。
+        if isinstance(exc, OSError):
+            hint = (
+                "这是文件写入被拒绝，通常不是程序 bug：\n"
+                "· 杀毒软件 / Windows「受控文件夹访问」拦截了本程序\n"
+                "· 或磁盘已满、目标目录只读\n\n"
+                f"数据目录：{paths.data_dir()}\n"
+                f"临时目录：{paths.temp_dir()}\n\n"
+                "请把 SoundboardStudio.exe 加入安全软件白名单后重启程序。"
+            )
+        else:
+            hint = "程序遇到一个未处理的问题。"
         try:
             QMessageBox.critical(
                 None, "Soundboard Studio 出错了",
-                f"程序遇到一个未处理的问题：\n\n{exc}\n\n"
-                f"详细信息已写入：{paths.log_path()}",
+                f"{hint}\n\n{exc}\n\n详细信息已写入：{LOG_PATH or paths.log_path()}",
             )
         except Exception:
             pass

@@ -43,15 +43,16 @@ def base_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-def _appdata_root() -> Path:
-    override = os.environ.get(DATA_DIR_ENV, "").strip()
-    if override:
-        return Path(override).expanduser()
-    appdata = os.environ.get("APPDATA", "").strip()
-    if appdata:
-        return Path(appdata) / APP_NAME
-    # 非 Windows / 极端环境兜底
-    return Path.home() / f".{APP_NAME.replace(' ', '-').lower()}"
+def _probe_writable(directory: Path) -> bool:
+    """目录能否真的写入（mkdir 成功不代表能写，杀软/受控文件夹访问会拦）。"""
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        probe = directory / ".write-test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
 
 
 def _ensure(directory: Path) -> Path:
@@ -62,9 +63,70 @@ def _ensure(directory: Path) -> Path:
     return directory
 
 
+#: data_dir() 的缓存：探测一次，避免每次调用都写测试文件
+_DATA_DIR_CACHE: Path | None = None
+
+
+def _data_candidates() -> list[Path]:
+    """按优先级列出数据目录候选：APPDATA → LOCALAPPDATA → 程序目录 → TEMP。"""
+    candidates: list[Path] = []
+    override = os.environ.get(DATA_DIR_ENV, "").strip()
+    if override:
+        candidates.append(Path(override).expanduser())
+    appdata = os.environ.get("APPDATA", "").strip()
+    if appdata:
+        candidates.append(Path(appdata) / APP_NAME)
+    local = os.environ.get("LOCALAPPDATA", "").strip()
+    if local:
+        candidates.append(Path(local) / APP_NAME)
+    candidates.append(base_dir() / "data")
+    temp = (os.environ.get("TEMP") or os.environ.get("TMP") or "").strip()
+    if temp:
+        candidates.append(Path(temp) / "SoundboardStudio-data")
+    else:
+        candidates.append(Path.home() / f".{APP_NAME.replace(' ', '-').lower()}")
+    # 去重（保持顺序）
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for path in candidates:
+        key = str(path).lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(path)
+    return unique
+
+
+def default_data_dir() -> Path:
+    """首选数据目录（不做可写探测），用于提示"已降级"。"""
+    appdata = os.environ.get("APPDATA", "").strip()
+    if appdata:
+        return Path(appdata) / APP_NAME
+    return Path.home() / f".{APP_NAME.replace(' ', '-').lower()}"
+
+
 def data_dir() -> Path:
-    """用户数据根目录（``%APPDATA%\\Soundboard Studio``）。"""
-    return _ensure(_appdata_root())
+    """用户数据根目录；APPDATA 不可写时自动降级（安全软件拦截的场景）。
+
+    真实踩坑：`%APPDATA%\\Soundboard Studio\\temp` 被安全软件挡住写入，
+    录音一结束就抛 WinError 5，整个程序弹“未处理的问题”。现在先探测
+    “能写”，再决定用哪个目录。
+    """
+    global _DATA_DIR_CACHE
+    if _DATA_DIR_CACHE is not None:
+        return _DATA_DIR_CACHE
+    for candidate in _data_candidates():
+        if _probe_writable(candidate):
+            _DATA_DIR_CACHE = candidate
+            return candidate
+    # 全都不行：保留首选路径（只读使用，写入处会提示用户）
+    _DATA_DIR_CACHE = _data_candidates()[0]
+    return _DATA_DIR_CACHE
+
+
+def reset_data_dir_cache() -> None:
+    """测试用：清掉 data_dir 缓存。"""
+    global _DATA_DIR_CACHE
+    _DATA_DIR_CACHE = None
 
 
 def audio_dir() -> Path:
@@ -73,7 +135,17 @@ def audio_dir() -> Path:
 
 
 def temp_dir() -> Path:
-    return _ensure(data_dir() / "temp")
+    """录音临时产物；APPDATA 的 temp 不可写时退到 LOCALAPPDATA / 系统 TEMP。"""
+    primary = data_dir() / "temp"
+    if _probe_writable(primary):
+        return primary
+    for candidate in _data_candidates():
+        alt = candidate / "temp"
+        if alt.resolve() == primary.resolve():
+            continue
+        if _probe_writable(alt):
+            return alt
+    return primary
 
 
 def config_path() -> Path:

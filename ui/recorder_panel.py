@@ -513,7 +513,14 @@ class RecorderPanel(QWidget):
         try:
             audio_io.write_wav(paths.temp_dir() / "rec_last.wav", self._data, self._rate)
         except audio_io.AudioError as exc:
+            self._LOGGER.error("写临时录音失败：%s", exc)
             self.error.emit(str(exc))
+        except OSError as exc:
+            self._LOGGER.error("写临时录音被拒绝：%s（目录 %s）", exc, paths.temp_dir())
+            self.error.emit(
+                f"无法写入临时目录：{paths.temp_dir()}\n"
+                "可能被杀毒软件/受控文件夹访问拦截，或磁盘已满。"
+            )
 
     # ------------------------------------------------------------------ 状态机
     def _enter_idle(self) -> None:
