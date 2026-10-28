@@ -16,10 +16,16 @@ dist/
 dist_staging/
 build/
 .tmp/
+installer/
 *.spec
+!packaging/SoundboardStudio.spec
 *.exe
 *.dll
 *.pyd
+
+# ---- 安装包分发物（体积大 / 第三方许可，由脚本下载，不入库）----
+packaging/redist/*.exe
+packaging/redist/*.zip
 
 # ---- Python ----
 __pycache__/
