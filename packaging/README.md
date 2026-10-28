@@ -34,6 +34,27 @@ soundboard_studio/
    - 或手动把 zip 交给脚本：`-CableZip D:\VBCABLE_Driver_Pack43.zip`
    - 脚本会用 Authenticode 校验发布者为 `VB-Audio / Vincent Burel`，不符直接拒绝打包。
 
+## 1.1.0 的“傻瓜式”改动（重要）
+
+* **检测修好了**：设备友好名称在 `...\Render\<GUID>\Properties` 下（值名才是属性 GUID）。
+  1.0.0 少了 `\Properties` 这一层，导致永远判定“未安装”；现在还会分别检查
+  `CABLE Input`（播放）与 `CABLE Output`（录音），**只装一半也算未就绪**。
+* **装完会验证**：驱动安装改为 `[Code]` 执行，装完轮询 20 秒等端点出现；
+  静默安装没生效会自动再跑一次**带界面**的安装器兜底。
+* **明确提示重启**：端点没出现时弹窗说明“驱动已装，需要重启”，可一键重启（15 秒）。
+* **留了后路**：安装目录常驻 `redist\VBCABLE_Setup_x64.exe` 与 `修复虚拟声卡.cmd`，
+  开始菜单也有「安装/修复 VB-CABLE 虚拟声卡」入口。
+* **不再打包用户数据**：`[Files]` 排除 `config.json` / `studio.log` / `audio\*.wav`。
+
+## 给测试人员的发布目录
+
+```
+installer\release\
+├─ SoundboardStudio-Setup-1.1.0.exe
+├─ 安装.cmd            # 双击这个（把 TEMP 指到 ProgramData，绕开“错误 5”）
+└─ 安装说明.txt
+```
+
 ## 一条命令出安装包
 
 ```powershell
