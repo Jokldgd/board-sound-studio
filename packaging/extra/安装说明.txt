@@ -36,22 +36,32 @@ Soundboard Studio 1.1.0 安装说明（给测试人员）
 
   第一次启动会有 3 步引导，跟着点完即可；右上角 [?] 随时可以再看帮助。
 
-四、安装位置与数据（1.2.0 起）
+四、安装位置与数据（1.3.3 起：数据就在 exe 同级）
 
-  程序目录：C:\Program Files\Soundboard Studio（只有程序本体，不含用户数据）
-  用户数据：%APPDATA%\Soundboard Studio\
-      ├─ audio\        录音与导入的音效
-      ├─ config.json   配置（含音效列表、快捷键）
-      └─ studio.log    日志
+  程序目录：C:\Program Files\Soundboard Studio\
+      ├─ SoundboardStudio.exe
+      ├─ audio\        录音与导入的音效（你的数据都在这）
+      ├─ temp\         录完还没点“保存”的临时文件 rec_last.wav
+      ├─ config.json   配置（音效列表、名称、音量、快捷键）
+      └─ studio.log    日志（出问题请把这个发给我们）
 
-  从旧版本升级：首次启动会自动把程序目录里的 audio\ 与 config.json
-  **复制**到 %APPDATA%（原文件保留，不删除）。
+  安装包只覆盖程序文件，升级/重装**不会**碰 audio\、temp\、config.json；
+  如果这个目录不可写（只读盘/被安全软件拦截），程序会自动改用
+  %LOCALAPPDATA%\Soundboard Studio\ 或 %TEMP%\SoundboardStudio-data\，
+  并在启动时弹窗告诉你实际位置。
 
   卸载时程序会问你「是否要保留您的录音、音效文件和软件配置？」：
-      选“是”（默认）→ 只删程序，数据完整保留，重装后自动沿用；
-      选“否” → 二次确认后才删除 %APPDATA%\Soundboard Studio。
+      选“是”（默认）→ 只删程序，audio\ 与 config.json 完整保留；
+      选“否” → 二次确认后才删除 audio\、temp\、config.json。
 
-五、常见问题
+五、音效打包与迁移（1.3.3 新增）
+
+  · 音效列表右上角「压缩」按钮：勾选若干条 → 生成 .zip
+    包内含 manifest.json + 音频 + 同名 .json（名称/音量/模式）。
+  · 导入对话框与拖拽都支持 .zip：直接把压缩包拖进来即可还原。
+  · 换电脑/备份：只拷 audio\ 和 config.json 也能完整迁移。
+
+六、常见问题
 
   Q: 双击 exe 报错 5 / 无法创建临时目录？
   A: 用「安装.cmd」启动（见第一步）。
