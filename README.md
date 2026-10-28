@@ -14,6 +14,28 @@
 ![ui](https://img.shields.io/badge/UI-PySide6%20(Qt6)-41CD52)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
+## 下载安装（最新版 1.3.3）
+
+**➡️ [下载 SoundboardStudio-Setup-1.3.3.exe](https://github.com/Jokldgd/board-sound-studio/releases/latest)**
+
+| 项 | 说明 |
+|---|---|
+| 版本 | **1.3.3**（2026-10-28 构建） |
+| 大小 | 42.7 MB |
+| SHA-256 | `D1416B3D5BD0889C81B3D52F6143B7DDE88FA3F061AEA16FDFED63232870E170` |
+| 系统 | Windows 10 / 11（64 位） |
+| 依赖 | 虚拟声卡 VB-CABLE（安装包会**自动静默安装并校验**，装完可能需重启一次） |
+
+安装步骤：
+
+1. 下载上面的 `SoundboardStudio-Setup-1.3.3.exe`（或 [Releases 页面](https://github.com/Jokldgd/board-sound-studio/releases) 里的最新版）；
+2. 双击运行 → 一路“下一步”，在“附加任务”里保留「安装 VB-CABLE 虚拟声卡」；
+3. 若提示“需要重启”，重启一次让虚拟声卡端点生效；
+4. 打开程序 → 顶栏应显示 `输出：CABLE Input`；语音软件（OOPZ / Discord）的**麦克风**选 `CABLE Output (VB-Audio Virtual Cable)`。
+
+> 数据位置：安装目录下的 `audio\`（录音/音效）、`temp\`（未保存的临时录音）、`config.json`、`studio.log`。
+> 卸载时默认**保留**这些数据；升级安装不会覆盖它们。
+
 ## 这个项目是什么
 
 **音效板 + 录音工具合并成一个桌面程序**：左边管理/播放音效（输出到虚拟声卡，
