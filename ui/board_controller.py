@@ -6,15 +6,18 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
+from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox, QWidget
 
+from core import paths
 from core.audio_engine import AudioEngine
-from core.clip_library import Clip, ClipLibrary
+from core.clip_library import Clip, ClipError, ClipLibrary
 from core.hotkey_manager import HotkeyManager
 
+from .archive_dialog import ArchiveDialog
 from .soundboard_panel import SoundboardPanel
 
 
@@ -48,6 +51,7 @@ class BoardController(QObject):
     def _connect(self) -> None:
         panel = self.panel
         panel.import_requested.connect(self.import_dialog)
+        panel.archive_requested.connect(self.archive_dialog)
         panel.refresh_requested.connect(self.refresh_directory)
         panel.files_dropped.connect(self.import_paths)
         panel.preview_requested.connect(self.toggle_preview)
@@ -80,10 +84,42 @@ class BoardController(QObject):
     def import_dialog(self) -> None:
         files, _filter = QFileDialog.getOpenFileNames(
             self.panel, "导入音效", str(Path.home()),
-            "音频文件 (*.mp3 *.wav *.ogg *.flac);;所有文件 (*)",
+            "音频或压缩包 (*.mp3 *.wav *.ogg *.flac *.zip);;"
+            "音频文件 (*.mp3 *.wav *.ogg *.flac);;"
+            "音效压缩包 (*.zip);;所有文件 (*)",
         )
         if files:
             self.import_paths(files)
+
+    def archive_dialog(self) -> None:
+        """把选中的音效压成 zip（含 manifest.json 与同名 .json）。"""
+        clips = list(self.library.clips)
+        if not clips:
+            self.error.emit("还没有音效可以压缩")
+            return
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default = paths.data_dir() / f"soundboard-pack-{stamp}.zip"
+        dialog = ArchiveDialog(clips, self.panel.window(), default)
+        from .window_utils import exec_centered
+
+        if exec_centered(dialog, self.panel.window()) != QDialog.DialogCode.Accepted:
+            return
+        selected = dialog.selected_clips()
+        if not selected:
+            self.error.emit("没有勾选任何音效")
+            return
+        try:
+            out = self.library.export_archive(selected, dialog.output_path())
+        except ClipError as exc:
+            self.error.emit(str(exc))
+            return
+        try:
+            size_mb = out.stat().st_size / (1024 * 1024)
+        except OSError:
+            size_mb = 0.0
+        self.message.emit(
+            f"已压缩 {len(selected)} 个音效：{out.name}（{size_mb:.1f} MB）"
+        )
 
     def import_paths(self, sources: list[str]) -> None:
         self.panel.set_busy(True)

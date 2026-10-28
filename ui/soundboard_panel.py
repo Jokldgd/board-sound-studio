@@ -314,6 +314,8 @@ class SoundboardPanel(QWidget):
     """左栏容器。"""
 
     import_requested = Signal()
+    #: 把选中的音效压缩成包
+    archive_requested = Signal()
     refresh_requested = Signal()
     files_dropped = Signal(list)
     preview_requested = Signal(str)
@@ -365,6 +367,12 @@ class SoundboardPanel(QWidget):
         self.import_button.setToolTip("导入音频文件（也可直接拖进来）")
         self.import_button.clicked.connect(self.import_requested.emit)
         bar.addWidget(self.import_button)
+
+        self.archive_button = IconButton(
+            "archive", 16, 28, "ghost", "把选中的音效压缩成包（含名称/音量配置）", toolbar
+        )
+        self.archive_button.clicked.connect(self.archive_requested.emit)
+        bar.addWidget(self.archive_button)
 
         self.refresh_button = IconButton("refresh-cw", 16, 28, "ghost", "刷新目录", toolbar)
         self.refresh_button.clicked.connect(self.refresh_requested.emit)

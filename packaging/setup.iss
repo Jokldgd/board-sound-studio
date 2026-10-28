@@ -14,7 +14,7 @@
 ; ============================================================================
 
 #define AppName        "Soundboard Studio"
-#define AppVersion     "1.3.2"
+#define AppVersion     "1.3.3"
 #define AppPublisher   "Jokldgd"
 #define AppURL         "https://github.com/Jokldgd/board-sound-studio"
 #define AppExeName     "SoundboardStudio.exe"
@@ -71,9 +71,11 @@ Name: "autostart";   Description: "开机自动启动 {#AppName}"; GroupDescript
 Name: "vbcable";     Description: "安装 VB-CABLE 虚拟声卡（推荐；装完可能需要重启）"; GroupDescription: "虚拟声卡:"
 
 [Files]
-; 主程序：PyInstaller onedir 产物；**不打包用户数据**（config.json / studio.log / audio\ 里的录音）
+; 主程序：PyInstaller onedir 产物；**不打包用户数据**
+; 1.3.3 起数据就在 {app}\audio、{app}\config.json，这里必须排除，
+; 否则升级安装会用打包时那份覆盖用户录音/配置。
 Source: "{#SourceDir}\*"; DestDir: "{app}"; \
-  Excludes: "config.json,studio.log,studio.log.*,audio\*"; \
+  Excludes: "config.json,studio.log,studio.log.*,audio\*,temp\*"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
 ; 保留整套驱动包在安装目录（inf/sys/cat 必须与 Setup exe 同目录）
 Source: "{#CableDir}\*"; DestDir: "{app}\{#CableDir}"; \
@@ -82,8 +84,11 @@ Source: "{#CableDir}\*"; DestDir: "{app}\{#CableDir}"; \
 Source: "extra\repair-cable.cmd"; DestDir: "{app}"; DestName: "修复虚拟声卡.cmd"; Flags: ignoreversion
 
 [Dirs]
-; 1.2.0：程序目录不再存用户数据（数据在 %APPDATA%\Soundboard Studio），
-; 因此不需要给安装目录加写权限 —— 更安全，也避免杀软误判。
+; 1.3.3：数据与程序同级（exe\audio），必须让普通用户可写，
+; 否则装进 Program Files 后录音会报 WinError 5。
+Name: "{app}";        Permissions: users-modify
+Name: "{app}\audio";  Permissions: users-modify
+Name: "{app}\temp";   Permissions: users-modify
 
 [Icons]
 Name: "{group}\{#AppName}";                Filename: "{app}\{#AppExeName}"
@@ -288,24 +293,28 @@ end;
 
 { ==========================================================================
   卸载：**绝不默认删除用户数据**
-  用户数据在 %APPDATA%\Soundboard Studio（录音 / 音效 / config.json）。
-  卸载程序只删自己安装的程序文件；这里再问一次是否保留数据：
-    是（默认）→ 原样保留
-    否         → 二次确认后删除整个数据目录
+  用户数据在安装目录的 audio 子目录与 config.json（1.3.3 起与 exe 同级）。
+  卸载程序默认只删自己安装的程序文件；这里再问一次是否删除用户数据：
+    是（默认）→ 保留录音/音效/配置
+    否         → 二次确认后删除 audio\temp\config.json
   ========================================================================== }
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  DataDir: String;
+  AudioDir: String;
+  TempDir: String;
+  ConfigFile: String;
 begin
   if CurUninstallStep <> usPostUninstall then
     Exit;
 
-  DataDir := ExpandConstant('{userappdata}\Soundboard Studio');
-  if not DirExists(DataDir) then
+  AudioDir := ExpandConstant('{app}\audio');
+  TempDir := ExpandConstant('{app}\temp');
+  ConfigFile := ExpandConstant('{app}\config.json');
+  if not DirExists(AudioDir) and not FileExists(ConfigFile) then
     Exit;
 
   if MsgBox('是否要保留您的录音、音效文件和软件配置？' + #13#10 + #13#10 +
-            '数据位置：' + DataDir + #13#10 + #13#10 +
+            '数据位置：' + ExpandConstant('{app}') + #13#10 + #13#10 +
             '· 选择「是」= 保留（推荐：以后重装会自动沿用）' + #13#10 +
             '· 选择「否」= 彻底删除（不可恢复）',
             mbConfirmation, MB_YESNO) = IDYES then
@@ -315,10 +324,9 @@ begin
             '确定要彻底删除用户数据吗？',
             mbConfirmation, MB_YESNO) = IDYES then
   begin
-    if DelTree(DataDir, True, True, True) then
-      MsgBox('用户数据已删除。', mbInformation, MB_OK)
-    else
-      MsgBox('删除未完全成功（可能有文件被占用）。可以手动删除：' + #13#10 + DataDir,
-             mbError, MB_OK);
+    DelTree(AudioDir, True, True, True);
+    DelTree(TempDir, True, True, True);
+    DeleteFile(ConfigFile);
+    MsgBox('用户数据已删除。', mbInformation, MB_OK);
   end;
 end;

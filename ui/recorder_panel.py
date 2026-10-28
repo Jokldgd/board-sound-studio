@@ -502,9 +502,14 @@ class RecorderPanel(QWidget):
             self.error.emit(f"目标应用已退出，已录 {duration:.2f}s 仍可保存")
         else:
             self.status_changed.emit(f"已录制 {duration:.2f}s")
+        # 注意：engine.peak 在 stop() 后会被清零，这里必须用采集到的数据算峰值，
+        # 否则日志永远写 0.000，看起来像"没录到声音"。
+        try:
+            peak = float(abs(data).max()) if data.size else 0.0
+        except Exception:  # noqa: BLE001
+            peak = 0.0
         self._LOGGER.info(
-            "录音完成 dur=%.2fs rate=%d peak=%.3f（等待保存）",
-            duration, rate, float(self.engine.peak) if self.engine else 0.0,
+            "录音完成 dur=%.2fs rate=%d peak=%.4f（等待保存）", duration, rate, peak
         )
 
     def _save_temp_copy(self) -> None:

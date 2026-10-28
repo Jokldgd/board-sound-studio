@@ -708,6 +708,41 @@ def test_migration() -> None:
           (data / "audio" / "rec_legacy2.wav").is_file())
 
 
+def test_archive() -> None:
+    """音效压缩包：导出 → 直接导入 zip，名称/音量要还原。"""
+    import zipfile
+
+    from core.clip_library import ClipLibrary
+
+    src = WORK / "pack_src"
+    src.mkdir(parents=True, exist_ok=True)
+    wav = src / "pack_one.wav"
+    audio_io.write_wav(wav, sine(0.3), SAMPLE_RATE)
+
+    library = ClipLibrary()
+    added, errors = library.import_files([str(wav)])
+    check("压缩前能导入", len(added) == 1 and not errors, str(errors))
+    clip = added[0]
+    library.rename(clip.id, "打包测试音")
+    library.set_volume(clip.id, 0.42)
+
+    out = WORK / "pack.zip"
+    made = library.export_archive([library.get(clip.id)], out)
+    check("生成压缩包", made.is_file() and made.stat().st_size > 0, str(made))
+    with zipfile.ZipFile(made) as archive:
+        names = archive.namelist()
+    check("包内有 manifest.json", "manifest.json" in names)
+    check("包内有音频", any(n.lower().endswith(".wav") for n in names), str(names[:3]))
+
+    library2 = ClipLibrary()
+    added2, errors2 = library2.import_files([str(made)])
+    check("导入功能支持 zip", len(added2) == 1 and not errors2, str(errors2))
+    if added2:
+        check("名称随包还原", added2[0].name == "打包测试音", added2[0].name)
+        check("音量随包还原", abs(added2[0].volume - 0.42) < 0.02,
+              f"{added2[0].volume:.3f}")
+
+
 # ---------------------------------------------------------------- 主流程
 def main() -> int:
     shutil.rmtree(WORK, ignore_errors=True)
@@ -741,6 +776,7 @@ def main() -> int:
         test_recorder()
         test_hotkeys()
         test_migration()
+        test_archive()
     finally:
         shutil.rmtree(WORK, ignore_errors=True)
 

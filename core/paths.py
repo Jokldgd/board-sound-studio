@@ -68,48 +68,41 @@ _DATA_DIR_CACHE: Path | None = None
 
 
 def _data_candidates() -> list[Path]:
-    """按优先级列出数据目录候选：APPDATA → LOCALAPPDATA → 程序目录 → TEMP。"""
-    candidates: list[Path] = []
+    """按优先级列出数据目录候选：**程序目录** → LOCALAPPDATA → TEMP。
+
+    1.3.3 起默认就是 **exe 同级的 audio/**（用户要求：绿色、直观、方便打包带走）。
+    只有程序目录不可写（例如装进 Program Files 又没给写权限）时才降级，
+    避免再出现 WinError 5。
+    """
     override = os.environ.get(DATA_DIR_ENV, "").strip()
     if override:
-        candidates.append(Path(override).expanduser())
-    appdata = os.environ.get("APPDATA", "").strip()
-    if appdata:
-        candidates.append(Path(appdata) / APP_NAME)
+        return [Path(override).expanduser()]
+    candidates: list[Path] = [base_dir()]
     local = os.environ.get("LOCALAPPDATA", "").strip()
     if local:
         candidates.append(Path(local) / APP_NAME)
-    candidates.append(base_dir() / "data")
     temp = (os.environ.get("TEMP") or os.environ.get("TMP") or "").strip()
     if temp:
         candidates.append(Path(temp) / "SoundboardStudio-data")
     else:
         candidates.append(Path.home() / f".{APP_NAME.replace(' ', '-').lower()}")
-    # 去重（保持顺序）
-    seen: set[str] = set()
-    unique: list[Path] = []
-    for path in candidates:
-        key = str(path).lower()
-        if key not in seen:
-            seen.add(key)
-            unique.append(path)
-    return unique
+    return candidates
 
 
 def default_data_dir() -> Path:
     """首选数据目录（不做可写探测），用于提示"已降级"。"""
-    appdata = os.environ.get("APPDATA", "").strip()
-    if appdata:
-        return Path(appdata) / APP_NAME
-    return Path.home() / f".{APP_NAME.replace(' ', '-').lower()}"
+    override = os.environ.get(DATA_DIR_ENV, "").strip()
+    if override:
+        return Path(override).expanduser()
+    return base_dir()
 
 
 def data_dir() -> Path:
-    """用户数据根目录；APPDATA 不可写时自动降级（安全软件拦截的场景）。
+    """用户数据根目录：**程序目录**（exe 同级）。
 
     真实踩坑：`%APPDATA%\\Soundboard Studio\\temp` 被安全软件挡住写入，
     录音一结束就抛 WinError 5，整个程序弹“未处理的问题”。现在先探测
-    “能写”，再决定用哪个目录。
+    “能写”，再决定用哪个目录；程序目录不可写时才降级。
     """
     global _DATA_DIR_CACHE
     if _DATA_DIR_CACHE is not None:
@@ -182,10 +175,15 @@ def to_relative(abs_path: str | Path) -> str:
 
 # --------------------------------------------------------------------------- 迁移
 def legacy_data_candidates() -> list[Path]:
-    """老版本可能放用户数据的位置（按优先级）。"""
-    candidates = [base_dir()]
+    """老版本可能放用户数据的位置（1.2.x 在 %APPDATA%，1.1 及以前在程序目录）。"""
+    candidates: list[Path] = []
     if is_frozen():
         candidates.append(Path(sys.executable).resolve().parent)
+    candidates.append(base_dir())
+    for key in ("APPDATA", "LOCALAPPDATA"):
+        root = os.environ.get(key, "").strip()
+        if root:
+            candidates.append(Path(root) / APP_NAME)
     return candidates
 
 

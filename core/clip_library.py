@@ -17,7 +17,9 @@ import logging
 import os
 import re
 import shutil
+import tempfile
 import uuid
+import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -28,6 +30,10 @@ import numpy as np
 from . import audio_io, paths
 
 _LOGGER = logging.getLogger("studio.core")
+
+#: 音效压缩包格式标识（manifest.json 里的 type 字段）
+PACK_TYPE = "soundboard-pack"
+PACK_VERSION = 1
 from .constants import (
     CLIP_MODES,
     CLIP_TOGGLE,
@@ -348,6 +354,15 @@ class ClipLibrary:
 
         for raw in sources:
             source = Path(raw)
+            if source.suffix.lower() == ".zip":
+                try:
+                    pack_added, pack_errors = self.import_archive(source)
+                except ClipError as exc:
+                    errors.append(f"{source.name}：{exc}")
+                    continue
+                added.extend(pack_added)
+                errors.extend(pack_errors)
+                continue
             if source.is_dir():
                 candidates = sorted(
                     p for p in source.iterdir()
@@ -420,6 +435,107 @@ class ClipLibrary:
         return self.add(clip)
 
     # ------------------------------------------------------------ 录音保存
+    # ------------------------------------------------------------------ 压缩包
+    def export_archive(self, clips: Iterable[Clip], out_zip: str | Path) -> Path:
+        """把选中的音效（音频 + 同名 .json + 清单）压成一个 zip。"""
+        selected = [clip for clip in clips if clip.exists()]
+        if not selected:
+            raise ClipError("没有可导出的音效（文件都不存在）")
+        target = Path(out_zip)
+        if target.suffix.lower() != ".zip":
+            target = target.with_suffix(".zip")
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
+                manifest = {
+                    "app": "Soundboard Studio",
+                    "type": PACK_TYPE,
+                    "version": PACK_VERSION,
+                    "created_at": datetime.now().isoformat(timespec="seconds"),
+                    "clips": [clip.to_dict() for clip in selected],
+                }
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(manifest, ensure_ascii=False, indent=2),
+                )
+                for clip in selected:
+                    media = clip.path()
+                    archive.write(media, f"audio/{media.name}")
+                    sidecar = sidecar_path(media)
+                    if sidecar.is_file():
+                        archive.write(sidecar, f"audio/{sidecar.name}")
+        except (OSError, zipfile.BadZipFile) as exc:
+            raise ClipError(f"压缩失败：{exc}") from exc
+        return target
+
+    def import_archive(self, archive_path: str | Path) -> tuple[list[Clip], list[str]]:
+        """导入音效压缩包（.zip）：支持本程序导出的包，也兼容"只装了音频"的 zip。"""
+        source = Path(archive_path)
+        if not source.is_file():
+            raise ClipError("压缩包不存在")
+        added: list[Clip] = []
+        errors: list[str] = []
+        root_dir = audio_root().resolve()
+        try:
+            with zipfile.ZipFile(source) as archive:
+                names = archive.namelist()
+                manifest: dict[str, Any] = {}
+                if "manifest.json" in names:
+                    try:
+                        manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
+                    except (ValueError, UnicodeDecodeError):
+                        manifest = {}
+                media_names = [
+                    name for name in names
+                    if not name.endswith("/")
+                    and Path(name).suffix.lower() in SUPPORTED_EXTS
+                ]
+                if not media_names:
+                    raise ClipError("压缩包里没有支持的音频")
+                meta_by_name = {
+                    str(item.get("file", "")).rsplit("/", 1)[-1]: item
+                    for item in (manifest.get("clips") or [])
+                    if isinstance(item, dict)
+                }
+                # 用程序自己的 temp 目录解压：系统 %TEMP% 可能被安全软件/沙箱拒绝
+                tmp_dir = paths.temp_dir() / f"import_pack_{uuid.uuid4().hex[:8]}"
+                try:
+                    tmp_dir.mkdir(parents=True, exist_ok=True)
+                    archive.extractall(tmp_dir)
+                    for name in media_names:
+                        extracted = tmp_dir / name
+                        try:
+                            clip = self._import_one(extracted, root_dir)
+                        except ClipError as exc:
+                            errors.append(f"{Path(name).name}：{exc}")
+                            continue
+                        meta = meta_by_name.get(extracted.name) or meta_by_name.get(
+                            Path(name).name
+                        )
+                        if meta:
+                            nice = str(meta.get("name") or "").strip()
+                            if nice:
+                                self.rename(clip.id, nice)
+                                clip = self.get(clip.id) or clip
+                            if meta.get("volume") is not None:
+                                self.set_volume(clip.id, float(meta["volume"]))
+                                clip = self.get(clip.id) or clip
+                            if meta.get("mode"):
+                                clip.mode = str(meta["mode"])
+                            if meta.get("hotkey"):
+                                clip.hotkey = str(meta["hotkey"])
+                            if meta.get("source"):
+                                clip.source = str(meta["source"])
+                            self._sync_sidecar(clip)
+                        added.append(clip)
+                finally:
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
+        except zipfile.BadZipFile as exc:
+            raise ClipError("不是有效的 zip 压缩包") from exc
+        except OSError as exc:
+            raise ClipError(f"读取压缩包失败：{exc}") from exc
+        return added, errors
+
     def save_recorded(
         self,
         data: np.ndarray,
