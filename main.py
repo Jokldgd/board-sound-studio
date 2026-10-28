@@ -15,6 +15,7 @@ import sys
 import threading
 import traceback
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QtMsgType, QTimer, qInstallMessageHandler
 from PySide6.QtGui import QFont
@@ -32,21 +33,53 @@ _wheel_guard = None
 logger = logging.getLogger("studio")
 
 
-def setup_logging() -> None:
+LOG_PATH: Path | None = None
+
+
+def _log_candidates() -> list[Path]:
+    """日志候选位置：数据目录 → %LOCALAPPDATA% → %TEMP%。
+
+    只要有一个能写就一定能留下现场（曾经因为 %APPDATA% 权限问题整个日志消失，
+    出问题时无从查起）。
+    """
+    candidates = [paths.log_path()]
+    local = os.environ.get("LOCALAPPDATA", "").strip()
+    if local:
+        candidates.append(Path(local) / paths.APP_NAME / "studio.log")
+    temp = os.environ.get("TEMP") or os.environ.get("TMP") or ""
+    if temp:
+        candidates.append(Path(temp) / "SoundboardStudio.log")
+    return candidates
+
+
+def setup_logging() -> Path | None:
+    global LOG_PATH
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     if root.handlers:
-        return
-    try:
-        handler = RotatingFileHandler(
-            paths.log_path(), maxBytes=512 * 1024, backupCount=2, encoding="utf-8"
-        )
-    except OSError:
+        return LOG_PATH
+    handler: logging.Handler | None = None
+    for candidate in _log_candidates():
+        try:
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            handler = RotatingFileHandler(
+                candidate, maxBytes=512 * 1024, backupCount=2, encoding="utf-8"
+            )
+            LOG_PATH = candidate
+            break
+        except OSError:
+            continue
+    if handler is None:
         handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(
         logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s")
     )
     root.addHandler(handler)
+    if LOG_PATH is not None:
+        logger.info("日志文件：%s", LOG_PATH)
+    else:
+        logger.warning("无法创建日志文件，日志只输出到 stderr")
+    return LOG_PATH
 
 
 def _qt_message_handler(mode, context, message) -> None:  # noqa: ANN001

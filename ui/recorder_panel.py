@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -69,6 +70,8 @@ def _format_clock(seconds: float) -> str:
 
 class RecorderPanel(QWidget):
     """右栏录音面板（固定 340px）。"""
+
+    _LOGGER = logging.getLogger("studio.recorder")
 
     clip_saved = Signal(object)
     status_changed = Signal(str)
@@ -447,9 +450,21 @@ class RecorderPanel(QWidget):
     def start_recording(self) -> None:
         target = self.current_choice()
         if target is None:
+            self._LOGGER.warning(
+                "开始录音失败：没有目标 mode=%s choices=%d hint=%s",
+                self.current_mode(), len(self._choices),
+                TARGET_PLACEHOLDER[self.current_mode()],
+            )
             self.error.emit(TARGET_PLACEHOLDER[self.current_mode()])
             return
+        self._LOGGER.info(
+            "开始录音 mode=%s target=%s backend=%s rate=%s ch=%s",
+            self.current_mode(), getattr(target, "name", target),
+            getattr(target, "backend", "?"), getattr(target, "samplerate", "?"),
+            getattr(target, "channels", "?"),
+        )
         if not self.engine.start(self.current_mode(), target):
+            self._LOGGER.error("录音引擎启动失败：%s", self.engine.last_error)
             self.error.emit(self.engine.last_error or "无法开始录音")
             self._enter_idle()
             return
@@ -460,6 +475,7 @@ class RecorderPanel(QWidget):
         self.engine.auto_stop_reason = None
         result = self.engine.stop()
         if result is None:
+            self._LOGGER.error("停止录音失败：没有采集到数据（auto=%s）", auto_reason)
             self.error.emit("没有录到任何数据（设备可能没在采集）")
             self._enter_idle()
             self.recording_changed.emit(False)
@@ -486,6 +502,10 @@ class RecorderPanel(QWidget):
             self.error.emit(f"目标应用已退出，已录 {duration:.2f}s 仍可保存")
         else:
             self.status_changed.emit(f"已录制 {duration:.2f}s")
+        self._LOGGER.info(
+            "录音完成 dur=%.2fs rate=%d peak=%.3f（等待保存）",
+            duration, rate, float(self.engine.peak) if self.engine else 0.0,
+        )
 
     def _save_temp_copy(self) -> None:
         if self._data is None:
@@ -645,6 +665,7 @@ class RecorderPanel(QWidget):
         try:
             prepared = self._prepared_data()
         except audio_io.AudioError as exc:
+            self._LOGGER.error("保存录音失败（准备数据）：%s", exc)
             self.error.emit(str(exc))
             return
         self._set_saving(True)
@@ -657,10 +678,18 @@ class RecorderPanel(QWidget):
                 volume=1.0,
             )
         except ClipError as exc:
+            self._LOGGER.error("保存录音失败（写入音效库）：%s", exc)
+            self.error.emit(str(exc))
+            self._set_saving(False)
+            return
+        except Exception as exc:  # noqa: BLE001
+            self._LOGGER.exception("保存录音出现未预期异常")
             self.error.emit(str(exc))
             self._set_saving(False)
             return
         self._set_saving(False)
+        self._LOGGER.info("录音已保存：%s（%.1f KB）", clip.path(), clip.path().stat().st_size / 1024
+                          if clip.path().exists() else -1)
         self.result_hint.setText(f"已加入音效板：{clip.path().name}")
         self.clip_saved.emit(clip)
 
