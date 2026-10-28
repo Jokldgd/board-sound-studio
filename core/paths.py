@@ -118,52 +118,82 @@ def legacy_data_candidates() -> list[Path]:
 
 
 def migrate_legacy_data() -> dict[str, int | bool]:
-    """把老版本放在程序目录里的数据搬到 ``%APPDATA%``。
+    """把老版本放在程序目录里的数据搬到 ``%APPDATA%``（幂等，每次启动都检查）。
 
-    * **只复制、不删除**旧文件（万一用户想回滚旧版本，原目录仍可用）；
-    * 新位置已有 ``config.json`` 或迁移标记时直接跳过；
-    * 返回 ``{"migrated": bool, "files": n, "source": str}``，供日志记录。
+    设计要点（踩过的坑）：
+    * **按文件粒度**迁移，不再"有 config 就整体跳过"。1.2.0 早期版本只要
+      ``%APPDATA%\\...\\config.json`` 存在就直接返回，结果用户把录音放回程序目录后
+      永远迁不过去 —— 表现就是"audio 里有文件，程序列表却是空的"。
+    * config.json 只在目标缺失时复制（避免覆盖用户新配置）；
+      audio 按**文件名**补齐（已存在的不动，只复制缺的）。
+    * **只复制、不删除**旧文件（可回滚旧版本）。
     """
     target = data_dir()
     try:
         target.mkdir(parents=True, exist_ok=True)
     except OSError:
         return {"migrated": False, "files": 0, "source": ""}
-    marker = target / MIGRATION_MARKER
-    if (target / "config.json").is_file() or marker.is_file():
+
+    audio_target = target / "audio"
+    try:
+        audio_target.mkdir(parents=True, exist_ok=True)
+    except OSError:
         return {"migrated": False, "files": 0, "source": ""}
 
-    for source in legacy_data_candidates():
-        if source.resolve() == target.resolve():
-            continue
-        legacy_config = source / "config.json"
-        legacy_audio = source / "audio"
-        has_audio = legacy_audio.is_dir() and any(
-            p.is_file() and p.suffix.lower() in (".wav", ".mp3", ".flac", ".ogg", ".json")
-            for p in legacy_audio.iterdir()
-        )
-        if not legacy_config.is_file() and not has_audio:
-            continue
+    copied = 0
+    source_used = ""
+    audio_suffixes = {".wav", ".mp3", ".flac", ".ogg", ".json"}
 
-        copied = 0
-        try:
-            if legacy_config.is_file():
+    sources = [s for s in legacy_data_candidates() if s.resolve() != target.resolve()]
+
+    # 1) 配置：只在目标没有时复制
+    if not (target / "config.json").is_file():
+        for source in sources:
+            legacy_config = source / "config.json"
+            if not legacy_config.is_file():
+                continue
+            try:
                 shutil.copy2(legacy_config, target / "config.json")
-                copied += 1
-            if has_audio:
-                dest_audio = target / "audio"
-                dest_audio.mkdir(parents=True, exist_ok=True)
-                for item in legacy_audio.iterdir():
-                    if not item.is_file():
-                        continue
-                    shutil.copy2(item, dest_audio / item.name)
-                    copied += 1
-            marker.write_text(
-                f"migrated from: {source}\nfiles: {copied}\n", encoding="utf-8"
+            except OSError:
+                continue
+            copied += 1
+            source_used = str(source)
+            break
+
+    # 2) 音频：按文件名补齐（幂等；每次启动都跑，能救"放回去却加载不出来"）
+    try:
+        existing = {p.name for p in audio_target.iterdir() if p.is_file()}
+    except OSError:
+        existing = set()
+
+    for source in sources:
+        legacy_audio = source / "audio"
+        if not legacy_audio.is_dir():
+            continue
+        try:
+            items = list(legacy_audio.iterdir())
+        except OSError:
+            continue
+        for item in items:
+            if not item.is_file() or item.suffix.lower() not in audio_suffixes:
+                continue
+            if item.name in existing:
+                continue
+            try:
+                shutil.copy2(item, audio_target / item.name)
+            except OSError:
+                continue
+            existing.add(item.name)
+            copied += 1
+            source_used = source_used or str(source)
+
+    if copied:
+        try:
+            (target / MIGRATION_MARKER).write_text(
+                f"migrated from: {source_used}\nfiles: {copied}\n", encoding="utf-8"
             )
         except OSError:
-            # 迁移失败不阻断启动：用户仍可手动把文件拷到 %APPDATA%
-            return {"migrated": False, "files": copied, "source": str(source)}
-        return {"migrated": True, "files": copied, "source": str(source)}
+            pass
+        return {"migrated": True, "files": copied, "source": source_used}
 
     return {"migrated": False, "files": 0, "source": ""}

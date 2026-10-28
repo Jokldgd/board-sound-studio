@@ -373,8 +373,18 @@ class MainWindow(QMainWindow):
 
     # ================================================================== 数据/热键
     def _load_library(self) -> None:
+        from core import paths as _paths
+
+        audio_dir = _paths.audio_dir()
+        try:
+            wav_count = len([p for p in audio_dir.iterdir()
+                             if p.is_file() and p.suffix.lower() in (".wav", ".mp3", ".flac", ".ogg")])
+        except OSError:
+            wav_count = 0
+        logger.info("音效目录 %s（%d 个音频文件）", audio_dir, wav_count)
         added, updated = self.library.scan_directory()
         self.board.refresh_board()
+        logger.info("载入音效：已有 %d 条，新增 %d 条", len(self.library.clips), len(added))
         if added:
             self.show_message(f"从目录收进 {len(added)} 个音效")
         if updated:

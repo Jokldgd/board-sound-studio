@@ -695,6 +695,18 @@ def test_migration() -> None:
     second = paths.migrate_legacy_data()
     check("迁移只执行一次", not bool(second["migrated"]), str(second))
 
+    # 回归：config 已存在、但录音被清掉 → 仍应把旧录音补回来
+    # （1.2.0 早期版本"有 config 就整体跳过"，导致 audio 有文件列表却为空）
+    for leftover in (data / "audio").glob("*"):
+        if leftover.is_file():
+            leftover.unlink()
+    extra_wav = legacy_audio / "rec_legacy2.wav"
+    audio_io.write_wav(extra_wav, sine(0.2), SAMPLE_RATE)
+    third = paths.migrate_legacy_data()
+    check("config 已存在时仍会补音频", bool(third["migrated"]), str(third))
+    check("补回的录音在数据目录",
+          (data / "audio" / "rec_legacy2.wav").is_file())
+
 
 # ---------------------------------------------------------------- 主流程
 def main() -> int:

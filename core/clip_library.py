@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -25,6 +26,8 @@ from typing import Any, Iterable
 import numpy as np
 
 from . import audio_io, paths
+
+_LOGGER = logging.getLogger("studio.core")
 from .constants import (
     CLIP_MODES,
     CLIP_TOGGLE,
@@ -177,14 +180,21 @@ class ClipLibrary:
     def configure_audio_dir(self, raw: str | None) -> Path:
         """设置本库使用的音效目录（来自 config.save_dir）。
 
-        ``raw`` 为空 → 用默认的 ``audio/``；相对路径按项目根解析，
-        绝对路径原样使用。目录不存在会创建。
+        ``raw`` 为空 → 用默认的 ``%APPDATA%\\Soundboard Studio\\audio``；
+        绝对路径原样使用。**目录不存在时回退到默认目录**（并记日志）：
+        老配置里可能残留旧安装路径，如果直接用它，界面上就会"audio 里有文件
+        但列表是空的"。
         """
         global _audio_root_override
         if raw and str(raw).strip():
             text = str(raw).strip()
             path = Path(text)
-            _audio_root_override = path if path.is_absolute() else paths.resolve_relative(text)
+            candidate = path if path.is_absolute() else paths.resolve_relative(text)
+            if candidate.is_dir():
+                _audio_root_override = candidate
+            else:
+                _LOGGER.warning("配置的音效目录不存在，回退到默认目录：%s", candidate)
+                _audio_root_override = None
         else:
             _audio_root_override = None
         root = audio_root()

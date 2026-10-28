@@ -156,6 +156,7 @@ def main() -> int:
     setup_logging()
     logger.info("启动，程序目录 %s", paths.base_dir())
     logger.info("数据目录 %s", paths.data_dir())
+    logger.info("音效目录 %s", paths.audio_dir())
     if migration["migrated"]:
         logger.info(
             "已从旧位置迁移 %s 个文件：%s", migration["files"], migration["source"]
